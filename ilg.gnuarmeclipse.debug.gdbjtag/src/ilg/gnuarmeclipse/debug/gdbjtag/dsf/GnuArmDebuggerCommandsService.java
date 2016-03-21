@@ -149,7 +149,7 @@ public abstract class GnuArmDebuggerCommandsService extends AbstractDsfService
 				IGDBJtagConstants.ATTR_PORT_NUMBER,
 				IGDBJtagConstants.DEFAULT_PORT_NUMBER);
 
-		commandsList.add("-target-select remote " + remoteTcpHost + ":"
+		commandsList.add("-target-select extended-remote " + remoteTcpHost + ":"
 				+ remoteTcpPort + "");
 
 		return Status.OK_STATUS;
