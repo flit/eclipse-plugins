@@ -19,12 +19,17 @@ package org.eclipse.embedcdt.debug.gdbjtag.pyocd.core;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.eclipse.cdt.core.model.ICProject;
 import org.eclipse.cdt.core.settings.model.ICConfigurationDescription;
+import org.eclipse.cdt.debug.core.CDebugUtils;
+import org.eclipse.cdt.debug.gdbjtag.core.IGDBJtagConstants;
 import org.eclipse.cdt.dsf.gdb.IGDBLaunchConfigurationConstants;
 import org.eclipse.cdt.dsf.gdb.IGdbDebugPreferenceConstants;
 import org.eclipse.cdt.dsf.gdb.internal.GdbPlugin;
+import org.eclipse.cdt.dsf.gdb.launching.LaunchUtils;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.embedcdt.core.EclipseUtils;
@@ -38,6 +43,41 @@ import org.eclipse.embedcdt.internal.debug.gdbjtag.pyocd.core.Activator;
 public class Configuration {
 
 	// ------------------------------------------------------------------------
+	
+	public static String getSymbolsFileName(ILaunchConfiguration config) {
+		try {
+			ICProject cproject = LaunchUtils.getCProject(config);
+			IPath programPath = LaunchUtils.verifyProgramPath(config, cproject);
+			if (programPath == null) {
+				return null;
+			}
+
+			String symbolsFileName = null;
+			if (config.hasAttribute(IGDBJtagConstants.ATTR_USE_PROJ_BINARY_FOR_SYMBOLS)
+					&& config.getAttribute(
+							IGDBJtagConstants.ATTR_USE_PROJ_BINARY_FOR_SYMBOLS,
+							IGDBJtagConstants.DEFAULT_USE_PROJ_BINARY_FOR_SYMBOLS)) {
+				if (programPath != null) {
+					symbolsFileName = programPath.toOSString();
+				}
+			} else {
+				symbolsFileName = config.getAttribute(
+						IGDBJtagConstants.ATTR_SYMBOLS_FILE_NAME,
+						IGDBJtagConstants.DEFAULT_SYMBOLS_FILE_NAME);
+				if (!symbolsFileName.isEmpty()) {
+					symbolsFileName = DebugUtils.resolveAll(symbolsFileName,
+							config.getAttributes());
+				} else {
+					symbolsFileName = null;
+				}
+			}
+			
+			return symbolsFileName;
+		}
+		catch (CoreException e) {
+			return null;
+		}
+	}
 
 	public static String getGdbServerCommand(ILaunchConfiguration configuration, String executable) {
 
@@ -154,6 +194,13 @@ public class Configuration {
 			if (configuration.getAttribute(ConfigurationAttributes.GDB_SERVER_USE_GDB_SYSCALLS,
 					DefaultPreferences.GDB_SERVER_USE_GDB_SYSCALLS_DEFAULT)) {
 				lst.add("--gdb-syscall");
+			}
+			
+			// ELF file
+			String symbolsFilePath = getSymbolsFileName(configuration);
+			if (symbolsFilePath != null) {
+				lst.add("--elf");
+				lst.add(symbolsFilePath);
 			}
 
 			// Other
