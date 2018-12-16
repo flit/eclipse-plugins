@@ -155,10 +155,10 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	private static final int COLUMN_PAD = 30;
 
 	private static class Msgs {
-		public static final String INVALID_PYOCD_EXECUTABLE = "pyOCD gdbserver not found where specified";
-		public static final String INVALID_GDBSERVER_PORT = "pyOCD gdbserver port not specified";
-		public static final String INVALID_TELNET_PORT = "pyOCD telnet port not specified";
-		public static final String INVALID_GDBCLIENT_EXECUTABLE = "gdb client path is not valid";
+		public static final String INVALID_PYOCD_EXECUTABLE = "DebuggerTab.invalid_pyocd_executable";
+		public static final String INVALID_GDBSERVER_PORT = "DebuggerTab.invalid_gdbserver_port";
+		public static final String INVALID_TELNET_PORT = "DebuggerTab.invalid_telnet_port";
+		public static final String INVALID_GDBCLIENT_EXECUTABLE = "DebuggerTab.invalid_gdbclient_executable";
 	}
 	// ------------------------------------------------------------------------
 
@@ -1736,7 +1736,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	 */
 	private void registerError(String msg) {
 		if (fErrors.isEmpty()) {
-			setErrorMessage(msg);
+			setErrorMessage(Messages.getString(msg));
 		}
 		fErrors.add(msg);
 	}
@@ -1751,7 +1751,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			if (fErrors.isEmpty()) {
 				setErrorMessage(null);
 			} else {
-				setErrorMessage(fErrors.iterator().next());
+				setErrorMessage(Messages.getString(fErrors.iterator().next()));
 			}
 		}
 	}
