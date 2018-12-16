@@ -885,7 +885,11 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.updateActualpath() \"" + fullCommand + "\"");
 		}
-		fGdbServerPathLabel.setText(fullCommand);
+		if (fullCommand == null) {
+			fGdbServerPathLabel.setText("");
+		} else {
+			fGdbServerPathLabel.setText(fullCommand);
+		}
 	}
 
 	private void updateGdbClientActualPath() {
@@ -895,7 +899,11 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.updateGdbClientActualPath() \"" + fullCommand + "\"");
 		}
-		fGdbClientPathLabel.setText(fullCommand);
+		if (fullCommand == null) {
+			fGdbClientPathLabel.setText("");
+		} else {
+			fGdbClientPathLabel.setText(fullCommand);
+		}
 	}
 
 	private void doStartGdbServerChanged() {
@@ -950,7 +958,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		deregisterError(Msgs.OLD_PYOCD_EXECUTABLE);
 		
 		String path = Configuration.getGdbServerCommand(fConfiguration, fGdbServerExecutable.getText());
-		if (path.isEmpty()) {
+		if (path == null || path.isEmpty()) {
+			registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
 			return null;
 		}
 
