@@ -96,6 +96,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 	private List<PyOCD.Board> fBoards;
 	private String fSelectedBoardId;
+	private boolean fBoardIdListHasUnavailableItem; //!< Whether the boards list includes an item for the board in the config that is not currently connected.
+	private String fBoardIdListUnavailableId; //!< Board ID for the unavailable item.
 	private Map<String, PyOCD.Target> fTargetsByPartNumber; //!< Maps part number (user friendly name) to target object.
 	private Map<String, PyOCD.Target> fTargetsByName; //!< Maps target name to target object.
 
@@ -1020,6 +1022,15 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	}
 
 	private void boardSelected(int index) {
+		if (fBoardIdListHasUnavailableItem) {
+			if (index == 0) {
+				fSelectedBoardId = fBoardIdListUnavailableId;
+				return;
+			}
+			else {
+				index -= 1;
+			}
+		}
 		PyOCD.Board selectedBoard = fBoards.get(index);
 		fSelectedBoardId = selectedBoard.fUniqueId;
 	}
@@ -1028,9 +1039,14 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		// Get current board ID.
 		int index = indexForBoardId(fSelectedBoardId);
 		if (index != -1) {
+			if (fBoardIdListHasUnavailableItem) {
+				index += 1;
+			}
+			
 			fGdbServerBoardId.select(index);
 		} else {
-
+			assert(fBoardIdListHasUnavailableItem);
+			fGdbServerBoardId.select(0);
 		}
 	}
 	
@@ -1068,8 +1084,19 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			Collections.sort(boards, PyOCD.Board.COMPARATOR);
 
 			fBoards = boards;
-
+			
 			final ArrayList<String> itemList = new ArrayList<String>();
+			
+			// Figure out if the selected board is connected.
+			int currentBoardIndex = indexForBoardId(fSelectedBoardId);
+			if (currentBoardIndex == -1) {
+				fBoardIdListHasUnavailableItem = true;
+				fBoardIdListUnavailableId = fSelectedBoardId;
+				itemList.add(String.format("[Unconnected probe] (%s)", fSelectedBoardId));
+			}
+			else {
+				fBoardIdListHasUnavailableItem = false;
+			}
 
 			for (PyOCD.Board board : boards) {
 				String desc = board.fProductName;
