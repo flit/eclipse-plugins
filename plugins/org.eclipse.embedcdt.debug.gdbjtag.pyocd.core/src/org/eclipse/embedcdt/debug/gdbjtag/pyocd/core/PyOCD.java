@@ -121,14 +121,24 @@ public class PyOCD {
 		public String fPartNumber;
 		public String fSvdPath;
 
-		public static final Comparator COMPARATOR = new Comparator();
+		public static final NameComparator NAME_COMPARATOR = new NameComparator();
+		public static final PartNumberComparator PART_NUMBER_COMPARATOR = new PartNumberComparator();
 
 		/**
 		 * Comparator to sort targets by name.
 		 */
-		public static class Comparator implements java.util.Comparator<Target> {
+		public static class NameComparator implements java.util.Comparator<Target> {
 			public int compare(Target o1, Target o2) {
 				return o1.fName.compareTo(o2.fName);
+			}
+		}
+
+		/**
+		 * Comparator to sort targets by part number.
+		 */
+		public static class PartNumberComparator implements java.util.Comparator<Target> {
+			public int compare(Target o1, Target o2) {
+				return o1.fPartNumber.compareTo(o2.fPartNumber);
 			}
 		}
 

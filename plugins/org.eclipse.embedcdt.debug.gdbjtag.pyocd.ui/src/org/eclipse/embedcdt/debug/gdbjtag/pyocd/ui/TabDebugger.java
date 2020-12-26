@@ -1157,7 +1157,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 								System.out.printf("target = %s\n", targets);
 							}
 
-							Collections.sort(targets, PyOCD.Target.COMPARATOR);
+							Collections.sort(targets, PyOCD.Target.PART_NUMBER_COMPARATOR);
 							
 							// Create maps to go between target part number and name.
 							fTargetsByPartNumber = new HashMap<>();
