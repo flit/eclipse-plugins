@@ -1115,7 +1115,12 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 								if (!board.fProductName.startsWith(board.fVendorName)) {
 									desc = board.fVendorName + " " + board.fProductName;
 								}
-								itemList.add(String.format("%s - %s (%s)", board.fName, desc, board.fUniqueId));
+								if (board.fName.equalsIgnoreCase("generic")) {
+									itemList.add(String.format("%s (%s)", desc, board.fUniqueId));
+								}
+								else {
+									itemList.add(String.format("%s: %s (%s)", desc, board.fName, board.fUniqueId));
+								}
 							}
 
 							String[] items = itemList.toArray(new String[itemList.size()]);
