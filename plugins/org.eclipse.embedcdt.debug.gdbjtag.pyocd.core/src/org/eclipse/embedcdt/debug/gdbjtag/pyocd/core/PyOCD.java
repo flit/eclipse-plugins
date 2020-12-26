@@ -33,10 +33,10 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Status;
-import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.debug.core.DebugException;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.embedcdt.core.StringUtils;
+import org.eclipse.embedcdt.core.SystemJob;
 import org.eclipse.embedcdt.internal.debug.gdbjtag.pyocd.core.Activator;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -71,7 +71,17 @@ public class PyOCD {
 	public static final String TARGET_NAME_KEY = "name";
 	public static final String TARGET_PART_NUMBER_KEY = "part_number";
 	public static final String TARGET_SVD_PATH_KEY = "svd_path";
+
+	// 60 second timeout for calling pyocd.
+	public static final long PYOCD_TIMEOUT_MS = 60000;
 	
+	public static final class Errors {
+		public static final int ERROR_PARSING_OUTPUT = 1;
+		public static final int ERROR_RUNNING_PYOCD = 2;
+		public static final int ERROR_TIMEOUT = 3;
+		public static final int ERROR_INVALID_JSON_FORMAT = 4;
+	}
+
 	private static PyOCD fInstance;
 	private DefaultDsfExecutor fExecutor;
 	
@@ -442,44 +452,58 @@ public class PyOCD {
 		try {
 			process = ProcessFactory.getFactory().exec(args);
 		} catch (IOException e) {
-			throw new DebugException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, DebugException.REQUEST_FAILED,
-					"Error while launching command: " + StringUtils.join(args, " "), e.getCause()));//$NON-NLS-2$
+			throw new DebugException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, Errors.ERROR_RUNNING_PYOCD,
+					"Error while launching pyOCD: " + StringUtils.join(args, " "), e.getCause()));//$NON-NLS-2$
 		}
 
 		// Start a timeout job to make sure we don't get stuck waiting for
-		// an answer from a gdb that is hanging
+		// an answer from a pyocd that is hanging
 		// Bug 376203
-		Job timeoutJob = new Job("pyOCD output timeout job") { //$NON-NLS-1$
-			{
-				setSystem(true);
+		final class PyOCDTimeoutJob extends SystemJob { //$NON-NLS-1$
+			private boolean f_didTimeout = false;
+			
+			public PyOCDTimeoutJob() {
+				super("pyOCD output timeout job");
+			}
+
+			public boolean didTimeout() {
+				return f_didTimeout;
 			}
 
 			@Override
 			protected IStatus run(IProgressMonitor arg) {
-				// Took too long. Kill the gdb process and
+				// Took too long. Kill the pyocd process and
 				// let things clean up.
 				process.destroy();
+				f_didTimeout = true;
 				return Status.OK_STATUS;
 			}
 		};
-		timeoutJob.schedule(10000);
+		PyOCDTimeoutJob timeoutJob = new PyOCDTimeoutJob();
+		timeoutJob.schedule(PYOCD_TIMEOUT_MS);
 
 		String cmdOutput = null;
 		try {
 			cmdOutput = readStream(process.getInputStream());
 		} catch (IOException e) {
-			throw new DebugException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, DebugException.REQUEST_FAILED,
-					"Error reading pyOCD stdout after sending: " + StringUtils.join(args, " ") + ", response: "
-							+ cmdOutput,
+			throw new DebugException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, Errors.ERROR_RUNNING_PYOCD,
+					"Error reading pyOCD stdout: " + StringUtils.join(args, " "),
 					e.getCause()));// $NON-NLS-1$
 		} finally {
-			// If we get here we are obviously not stuck so we can cancel the
-			// timeout job.
-			// Note that it may already have executed, but that is not a
-			// problem.
-			timeoutJob.cancel();
-
-			process.destroy();
+			if (timeoutJob.didTimeout()) {
+				throw new DebugException(new Status(IStatus.ERROR, Activator.PLUGIN_ID, Errors.ERROR_TIMEOUT,
+						"pyOCD timed out: " + StringUtils.join(args, " "),
+						null));// $NON-NLS-1$
+			}
+			else {
+				// If we get here we are obviously not stuck so we can cancel the
+				// timeout job.
+				// Note that it may already have executed, but that is not a
+				// problem.
+				timeoutJob.cancel();
+	
+				process.destroy();
+			}
 		}
 
 		return cmdOutput;
