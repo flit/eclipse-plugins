@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2015-2016 Chris Reed.
+ * Copyright (c) 2015-2020 Chris Reed.
  * Copyright (c) 2016 John Cortell.
  *
  * This program and the accompanying materials
@@ -24,6 +24,10 @@ import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.eclipse.cdt.dsf.concurrent.DataRequestMonitor;
+import org.eclipse.cdt.dsf.concurrent.DefaultDsfExecutor;
+import org.eclipse.cdt.dsf.concurrent.DsfRunnable;
+import org.eclipse.cdt.dsf.concurrent.IDsfStatusConstants;
 import org.eclipse.cdt.utils.spawner.ProcessFactory;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -67,6 +71,17 @@ public class PyOCD {
 	public static final String TARGET_NAME_KEY = "name";
 	public static final String TARGET_PART_NUMBER_KEY = "part_number";
 	public static final String TARGET_SVD_PATH_KEY = "svd_path";
+	
+	private static PyOCD fInstance;
+	private DefaultDsfExecutor fExecutor;
+	
+	static {
+		fInstance = new PyOCD();
+	}
+	
+	public static PyOCD getInstance() {
+		return fInstance;
+	}
 
 	/**
 	 * Info about an available board.
@@ -189,25 +204,37 @@ public class PyOCD {
 		}
 	}
 
-	public static List<Board> getBoards(ILaunchConfiguration configuration) {
+	public PyOCD() {
+		fExecutor = new DefaultDsfExecutor();
+	}
+	
+	public void getBoards(ILaunchConfiguration configuration, final DataRequestMonitor<List<Board>> rm) {
 
 		String pyOCDPath = Configuration.getGdbServerCommand(configuration, null);
 		if (pyOCDPath == null) {
-			return null;
+			rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
+					IDsfStatusConstants.REQUEST_FAILED, "no pyocd path", null));
+			rm.done();
 		}
-		return getBoards(pyOCDPath);
+		else {
+			getBoards(pyOCDPath, rm);
+		}
 	}
 
-	public static List<Target> getTargets(ILaunchConfiguration configuration) {
+	public void getTargets(ILaunchConfiguration configuration, final DataRequestMonitor<List<Target>> rm) {
 
 		String pyOCDPath = Configuration.getGdbServerCommand(configuration, null);
 		if (pyOCDPath == null) {
-			return null;
+			rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
+					IDsfStatusConstants.REQUEST_FAILED, "no pyocd path", null));
+			rm.done();
 		}
-		return getTargets(pyOCDPath);
+		else {
+			getTargets(pyOCDPath, rm);
+		}
 	}
 
-	private static boolean checkOutput(JSONObject output) {
+	private boolean checkOutput(JSONObject output) {
 		// Make sure we even have valid output.
 		if (output == null) {
 			return false;
@@ -250,112 +277,141 @@ public class PyOCD {
 		return true;
 	}
 
-	public static List<Board> getBoards(String pyOCDPath) {
+	public void getBoards(String pyOCDPath, final DataRequestMonitor<List<Board>> rm) {
 
-		JSONObject output = getJsonOutput(pyOCDPath, "--probes");
-		// System.out.printf("pyOCD boards = %s\n", output);
-
-		if (!checkOutput(output)) {
-			return null;
-		}
-
-		if (!output.containsKey(BOARDS_KEY)) {
-			return null;
-		}
-
-		Object boardsObj = output.get(BOARDS_KEY);
-		if (!(boardsObj instanceof JSONArray)) {
-			return null;
-		}
-
-		JSONArray boards = (JSONArray) boardsObj;
-
-		ArrayList<Board> result = new ArrayList<Board>();
-		for (Object b : boards) {
-			try {
-				JSONObject bobj = (JSONObject) b;
-
-				Board boardInfo = new Board();
-				boardInfo.fDescription = (String) bobj.get(BOARD_INFO_KEY);
-				boardInfo.fName = (String) bobj.get(BOARD_NAME_KEY);
-				boardInfo.fVendorName = (String) bobj.get(BOARD_VENDOR_NAME_KEY);
-				boardInfo.fProductName = (String) bobj.get(BOARD_PRODUCT_NAME_KEY);
-				boardInfo.fTargetName = (String) bobj.get(BOARD_TARGET_KEY);
-				boardInfo.fUniqueId = (String) bobj.get(BOARD_UNIQUE_ID_KEY);
-
-				result.add(boardInfo);
-			} catch (Exception e) {
-				continue;
-			}
-		}
-
-		return result;
+		getJsonOutput(pyOCDPath, "--probes",
+				new DataRequestMonitor<JSONObject>(fExecutor, rm) {
+					@Override
+					protected void handleSuccess() {
+						// System.out.printf("pyOCD boards = %s\n", output);
+						
+						JSONObject output = getData();
+						
+						if (!(checkOutput(output) && output.containsKey(BOARDS_KEY))) {
+							rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
+									IDsfStatusConstants.REQUEST_FAILED, "invalid output", null));
+							rm.done();
+							return;
+						}
+				
+						Object boardsObj = output.get(BOARDS_KEY);
+						if (!(boardsObj instanceof JSONArray)) {
+							rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
+									IDsfStatusConstants.REQUEST_FAILED, "invalid boards key type", null));
+							rm.done();
+							return;
+						}
+				
+						JSONArray boards = (JSONArray) boardsObj;
+				
+						ArrayList<Board> result = new ArrayList<Board>();
+						for (Object b : boards) {
+							try {
+								JSONObject bobj = (JSONObject) b;
+				
+								Board boardInfo = new Board();
+								boardInfo.fDescription = (String) bobj.get(BOARD_INFO_KEY);
+								boardInfo.fName = (String) bobj.get(BOARD_NAME_KEY);
+								boardInfo.fVendorName = (String) bobj.get(BOARD_VENDOR_NAME_KEY);
+								boardInfo.fProductName = (String) bobj.get(BOARD_PRODUCT_NAME_KEY);
+								boardInfo.fTargetName = (String) bobj.get(BOARD_TARGET_KEY);
+								boardInfo.fUniqueId = (String) bobj.get(BOARD_UNIQUE_ID_KEY);
+				
+								result.add(boardInfo);
+							} catch (Exception e) {
+								continue;
+							}
+						}
+				
+						rm.done(result);
+					}
+				}
+			);
 	}
 
-	public static List<Target> getTargets(String pyOCDPath) {
+	public void getTargets(String pyOCDPath, final DataRequestMonitor<List<Target>> rm) {
 
-		JSONObject output = getJsonOutput(pyOCDPath, "--targets");
-		// System.out.printf("pyOCD targets = %s\n", output);
-
-		if (!checkOutput(output)) {
-			return null;
-		}
-
-		if (!output.containsKey(TARGETS_KEY)) {
-			return null;
-		}
-
-		Object targetsObj = output.get(TARGETS_KEY);
-		if (!(targetsObj instanceof JSONArray)) {
-			return null;
-		}
-
-		JSONArray targets = (JSONArray) targetsObj;
-
-		ArrayList<Target> result = new ArrayList<Target>();
-		for (Object t : targets) {
-			try {
-				JSONObject tobj = (JSONObject) t;
-
-				Target targetInfo = new Target();
-				targetInfo.fName = (String) tobj.get(TARGET_NAME_KEY);
-				targetInfo.fPartNumber = (String) tobj.get(TARGET_PART_NUMBER_KEY);
-				targetInfo.fSvdPath = (String) tobj.get(TARGET_SVD_PATH_KEY);
-
-				result.add(targetInfo);
-			} catch (Exception e) {
-				continue;
-			}
-		}
-
-		return result;
+		getJsonOutput(pyOCDPath, "--targets",
+				new DataRequestMonitor<JSONObject>(fExecutor, rm) {
+					@Override
+					protected void handleSuccess() {
+						// System.out.printf("pyOCD targets = %s\n", output);
+				
+						JSONObject output = getData();
+						
+						if (!(checkOutput(output) && output.containsKey(TARGETS_KEY))) {
+							rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
+									IDsfStatusConstants.REQUEST_FAILED, "invalid output", null));
+							rm.done();
+							return;
+						}
+								
+						Object targetsObj = output.get(TARGETS_KEY);
+						if (!(targetsObj instanceof JSONArray)) {
+							rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
+									IDsfStatusConstants.REQUEST_FAILED, "invalid targets key type", null));
+							rm.done();
+							return;
+						}
+				
+						JSONArray targets = (JSONArray) targetsObj;
+				
+						ArrayList<Target> result = new ArrayList<Target>();
+						for (Object t : targets) {
+							try {
+								JSONObject tobj = (JSONObject) t;
+				
+								Target targetInfo = new Target();
+								targetInfo.fName = (String) tobj.get(TARGET_NAME_KEY);
+								targetInfo.fPartNumber = (String) tobj.get(TARGET_PART_NUMBER_KEY);
+								targetInfo.fSvdPath = (String) tobj.get(TARGET_SVD_PATH_KEY);
+				
+								result.add(targetInfo);
+							} catch (Exception e) {
+								continue;
+							}
+						}
+				
+						rm.done(result);
+					}
+				}
+			);
 	}
 
-	private static JSONObject getJsonOutput(final String pyOCDPath, String listArg) {
-		try {
-			String[] cmdArray = new String[3];
-			cmdArray[0] = pyOCDPath;
-			cmdArray[1] = "json";
-			cmdArray[2] = listArg;
-			
-			String result = getOutput(cmdArray);
-			JSONParser parser = new JSONParser();
-			Object obj = parser.parse(result);
-			return (JSONObject) obj;
-		} catch (ParseException e) {
-			if (Activator.getInstance().isDebugging()) {
-				System.out.printf("Parse exception: %s\n", e);
+	private void getJsonOutput(final String pyOCDPath, String listArg, final DataRequestMonitor<JSONObject> rm) {
+		fExecutor.execute(new DsfRunnable() {
+			@Override
+			public void run() {
+				try {
+					String[] cmdArray = new String[3];
+					cmdArray[0] = pyOCDPath;
+					cmdArray[1] = "json";
+					cmdArray[2] = listArg;
+					
+					String result = getOutput(cmdArray);
+					JSONParser parser = new JSONParser();
+					JSONObject obj = (JSONObject)parser.parse(result);
+					rm.done(obj);
+				} catch (ParseException e) {
+					if (Activator.getInstance().isDebugging()) {
+						System.out.printf("Parse exception: %s\n", e);
+					}
+					rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
+							IDsfStatusConstants.REQUEST_FAILED, "error parsing pyocd JSON output", e));
+					rm.done();
+				} catch (CoreException e) {
+					if (Activator.getInstance().isDebugging()) {
+						System.out.printf("Core exception: %s\n", e);
+					}
+					rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
+							IDsfStatusConstants.REQUEST_FAILED, "error invoking pyocd", e));
+					rm.done();
+				}
 			}
-			return null;
-		} catch (CoreException e) {
-			if (Activator.getInstance().isDebugging()) {
-				System.out.printf("Core exception: %s\n", e);
-			}
-			return null;
-		}
+		});
 	}
 	
-	public static Version getVersion(final String pyOCDPath) {
+	public Version getVersion(final String pyOCDPath) {
 		try {
 			String[] args = new String[2];
 			args[0] = pyOCDPath;
@@ -371,7 +427,7 @@ public class PyOCD {
 		}
 	}
 
-	public static String getOutput(final String[] args) throws CoreException {
+	public String getOutput(final String[] args) throws CoreException {
 		final Process process;
 		try {
 			process = ProcessFactory.getFactory().exec(args);
@@ -426,7 +482,7 @@ public class PyOCD {
 	 * @return The data read from the stream
 	 * @throws IOException If an IOException happens when reading the stream
 	 */
-	public static String readStream(InputStream stream) throws IOException {
+	public String readStream(InputStream stream) throws IOException {
         StringBuilder cmdOutput = new StringBuilder(200);
         try {
         	Reader r = new InputStreamReader(stream);

@@ -28,7 +28,6 @@
 package org.eclipse.embedcdt.debug.gdbjtag.pyocd.ui;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,11 +41,15 @@ import org.eclipse.cdt.debug.gdbjtag.ui.GDBJtagImages;
 import org.eclipse.cdt.dsf.gdb.IGDBLaunchConfigurationConstants;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.CoreException;
+import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.debug.core.ILaunchConfiguration;
 import org.eclipse.debug.core.ILaunchConfigurationWorkingCopy;
 import org.eclipse.debug.ui.AbstractLaunchConfigurationTab;
 import org.eclipse.debug.ui.StringVariableSelectionDialog;
 import org.eclipse.embedcdt.core.EclipseUtils;
+import org.eclipse.embedcdt.debug.gdbjtag.core.ImmediateDataRequestMonitor;
 import org.eclipse.embedcdt.debug.gdbjtag.pyocd.core.Configuration;
 import org.eclipse.embedcdt.debug.gdbjtag.pyocd.core.ConfigurationAttributes;
 import org.eclipse.embedcdt.debug.gdbjtag.pyocd.core.PyOCD;
@@ -58,6 +61,7 @@ import org.eclipse.embedcdt.internal.debug.gdbjtag.pyocd.ui.Messages;
 import org.eclipse.embedcdt.internal.debug.gdbjtag.pyocd.ui.preferences.GlobalMcuPage;
 import org.eclipse.embedcdt.internal.debug.gdbjtag.pyocd.ui.preferences.WorkspaceMcuPage;
 import org.eclipse.embedcdt.internal.debug.gdbjtag.pyocd.ui.properties.ProjectMcuPage;
+import org.eclipse.embedcdt.ui.SystemUIJob;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ModifyEvent;
@@ -973,6 +977,9 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 		// First check if the file is a directory.
 		File file = new File(path);
+		if (!file.exists()) {
+			return null;
+		}
 		if (file.isDirectory()) {
 			// TODO: Use java.nio.Files when we move to Java 7 to also check
 			// that file is executable
@@ -985,7 +992,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		else {
 			// Attempt to get the pyocd version, which also validates the path simultaneously.
 			// Support pyOCD being in PATH and specified sans path (issue#102)
-			PyOCD.Version version = PyOCD.getVersion(path);
+			PyOCD.Version version = PyOCD.getInstance().getVersion(path);
 			
 			// If we get null back then the tool doesn't exist or can't be executed.
 			if (version == null) {
@@ -1073,45 +1080,63 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	private void updateBoards() {
 		String path = getPyOCDExecutablePath();
 		if (path != null) {
-			List<PyOCD.Board> boards = PyOCD.getBoards(path);
-			if (boards == null) {
-				boards = new ArrayList<PyOCD.Board>();
-			}
-			if (Activator.getInstance().isDebugging()) {
-				System.out.printf("board = %s\n", boards);
-			}
+			PyOCD.getInstance().getBoards(path,
+					new ImmediateDataRequestMonitor<List<PyOCD.Board>>() {
+						@Override
+						protected void handleSuccess() {
+							List<PyOCD.Board> boards = getData();
+							
+							if (boards == null) {
+								boards = new ArrayList<PyOCD.Board>();
+							}
+							if (Activator.getInstance().isDebugging()) {
+								System.out.printf("board = %s\n", boards);
+							}
 
-			Collections.sort(boards, PyOCD.Board.COMPARATOR);
+							Collections.sort(boards, PyOCD.Board.COMPARATOR);
 
-			fBoards = boards;
-			
-			final ArrayList<String> itemList = new ArrayList<String>();
-			
-			// Figure out if the selected board is connected.
-			int currentBoardIndex = indexForBoardId(fSelectedBoardId);
-			if (currentBoardIndex == -1) {
-				fBoardIdListHasUnavailableItem = true;
-				fBoardIdListUnavailableId = fSelectedBoardId;
-				itemList.add(String.format("[Unconnected probe] (%s)", fSelectedBoardId));
-			}
-			else {
-				fBoardIdListHasUnavailableItem = false;
-			}
+							fBoards = boards;
+							
+							final ArrayList<String> itemList = new ArrayList<String>();
+							
+							// Figure out if the selected board is connected.
+							int currentBoardIndex = indexForBoardId(fSelectedBoardId);
+							if (currentBoardIndex == -1) {
+								fBoardIdListHasUnavailableItem = true;
+								fBoardIdListUnavailableId = fSelectedBoardId;
+								itemList.add(String.format("[Unconnected probe] (%s)", fSelectedBoardId));
+							}
+							else {
+								fBoardIdListHasUnavailableItem = false;
+							}
 
-			for (PyOCD.Board board : boards) {
-				String desc = board.fProductName;
-				if (!board.fProductName.startsWith(board.fVendorName)) {
-					desc = board.fVendorName + " " + board.fProductName;
-				}
-				itemList.add(String.format("%s - %s (%s)", board.fName, desc, board.fUniqueId));
-			}
+							for (PyOCD.Board board : boards) {
+								String desc = board.fProductName;
+								if (!board.fProductName.startsWith(board.fVendorName)) {
+									desc = board.fVendorName + " " + board.fProductName;
+								}
+								itemList.add(String.format("%s - %s (%s)", board.fName, desc, board.fUniqueId));
+							}
 
-			String[] items = itemList.toArray(new String[itemList.size()]);
+							String[] items = itemList.toArray(new String[itemList.size()]);
 
-			fGdbServerBoardId.setItems(items);
+							SystemUIJob updateJob = new SystemUIJob("update boards") {
+								@Override
+								public IStatus runInUIThread(IProgressMonitor monitor) {
+									fGdbServerBoardId.setItems(items);
 
-			selectActiveBoard();
-		} else {
+									selectActiveBoard();
+									
+									return Status.OK_STATUS;
+								}
+							};
+							updateJob.schedule();
+
+						}
+					}
+			);
+		}
+		else {
 			fGdbServerBoardId.setItems(new String[] {});
 		}
 	}
@@ -1119,32 +1144,48 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	private void updateTargets() {
 		String path = getPyOCDExecutablePath();
 		if (path != null) {
-			List<PyOCD.Target> targets = PyOCD.getTargets(path);
-			if (targets == null) {
-				targets = new ArrayList<PyOCD.Target>();
-			}
-			if (Activator.getInstance().isDebugging()) {
-				System.out.printf("target = %s\n", targets);
-			}
+			PyOCD.getInstance().getTargets(path,
+					new ImmediateDataRequestMonitor<List<PyOCD.Target>>() {
+						@Override
+						protected void handleSuccess() {
+							List<PyOCD.Target> targets = getData();
+							
+							if (targets == null) {
+								targets = new ArrayList<PyOCD.Target>();
+							}
+							if (Activator.getInstance().isDebugging()) {
+								System.out.printf("target = %s\n", targets);
+							}
 
-			Collections.sort(targets, PyOCD.Target.COMPARATOR);
-			
-			// Create maps to go between target part number and name.
-			fTargetsByPartNumber = new HashMap<>();
-			fTargetsByName = new HashMap<>();
+							Collections.sort(targets, PyOCD.Target.COMPARATOR);
+							
+							// Create maps to go between target part number and name.
+							fTargetsByPartNumber = new HashMap<>();
+							fTargetsByName = new HashMap<>();
 
-			final ArrayList<String> itemList = new ArrayList<String>();
-			for (PyOCD.Target target : targets) {
-				itemList.add(String.format("%s", target.fPartNumber));
-				fTargetsByPartNumber.put(target.fPartNumber, target);
-				fTargetsByName.put(target.fName, target);
-			}
-			String[] items = itemList.toArray(new String[itemList.size()]);
+							final ArrayList<String> itemList = new ArrayList<String>();
+							for (PyOCD.Target target : targets) {
+								itemList.add(String.format("%s", target.fPartNumber));
+								fTargetsByPartNumber.put(target.fPartNumber, target);
+								fTargetsByName.put(target.fName, target);
+							}
+							String[] items = itemList.toArray(new String[itemList.size()]);
 
-			fGdbServerTargetName.setItems(items);
+							SystemUIJob updateJob = new SystemUIJob("update targets") {
+								@Override
+								public IStatus runInUIThread(IProgressMonitor monitor) {
+									fGdbServerTargetName.setItems(items);
 
-			// Select current target from config.
-			selectActiveTarget();
+									// Select current target from config.
+									selectActiveTarget();
+									
+									return Status.OK_STATUS;
+								}
+							};
+							updateJob.schedule();
+						}
+					}
+				);
 		} else {
 			// Clear combobox and show error
 			fGdbServerTargetName.setItems(new String[] {});
