@@ -119,6 +119,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 	private Combo fGdbServerProbeId;
 	private Button fGdbServerRefreshProbes;
+	private Label fGdbServerRefreshingLabel;
 
 	private Text fGdbServerGdbPort;
 	private Text fGdbServerTelnetPort;
@@ -460,8 +461,14 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			fGdbServerTargetName = new Combo(comp, SWT.DROP_DOWN);
 			gd = new GridData();
 			gd.widthHint = 360;
-			gd.horizontalSpan = ((GridLayout) comp.getLayout()).numColumns - 1;
+			gd.horizontalSpan = ((GridLayout) comp.getLayout()).numColumns - 2;
 			fGdbServerTargetName.setLayoutData(gd);
+
+			fGdbServerRefreshingLabel = new Label(comp, SWT.CENTER);
+			fGdbServerRefreshingLabel.setText(Messages.getString("DebuggerTab.gdbServerRefreshing_Label"));
+			gd = new GridData(GridData.HORIZONTAL_ALIGN_CENTER);
+			fGdbServerRefreshingLabel.setLayoutData(gd);
+			fGdbServerRefreshingLabel.setVisible(false);
 		}
 
 		{
@@ -1160,92 +1167,92 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			
 			synchronized (this) {
 				fOutstandingProbesLoad = true;
+				fGdbServerRefreshingLabel.setVisible(true);
 			}
 			
 			PyOCD.getInstance().getProbes(path,
 					new ImmediateDataRequestMonitor<List<PyOCD.Probe>>() {
 						@Override
-						protected void handleSuccess() {
+						protected void handleCompleted() {
+							synchronized (this) {
+								fOutstandingProbesLoad = false;
+							}
+
 							if (!fIsActive) {
 								if (Activator.getInstance().isDebugging()) {
 									System.out.printf("(probes) bailing on updating debugger tab because it's no longer active\n");
 								}
-								synchronized (this) {
-									fOutstandingProbesLoad = false;
-								}
 								return;
 							}
 						
-							clearPyocdErrors(true);
-							setMessage(null);
+							ArrayList<String> itemList = new ArrayList<String>();
 							
-							List<PyOCD.Probe> probes = getData();
-							
-							if (probes == null) {
-								probes = new ArrayList<PyOCD.Probe>();
-							}
-							if (Activator.getInstance().isDebugging()) {
-								System.out.printf("probes = %s\n", probes);
-							}
-
-							Collections.sort(probes, PyOCD.Probe.COMPARATOR);
-
-							fProbes = probes;
-							
-							final ArrayList<String> itemList = new ArrayList<String>();
-							
-							// Figure out if the selected probe is connected.
-							int currentProbeIndex = indexForProbeId(fSelectedProbeId);
-							if (currentProbeIndex == -1) {
-								fProbeIdListHasUnavailableItem = true;
-								fProbeIdListUnavailableId = fSelectedProbeId;
-								itemList.add(String.format("[Unconnected probe] (%s)", fSelectedProbeId));
+							IStatus status = getStatus();
+							final boolean isOK = status.isOK();
+							if (!isOK) {
+								setPyocdError(getStatus(), false);
 							}
 							else {
-								fProbeIdListHasUnavailableItem = false;
-							}
-
-							for (PyOCD.Probe probe : probes) {
-								String desc = probe.fProductName;
-								if (!probe.fProductName.startsWith(probe.fVendorName)) {
-									desc = probe.fVendorName + " " + probe.fProductName;
+								clearPyocdErrors(true);
+								setMessage(null);
+								
+								List<PyOCD.Probe> probes = getData();
+								
+								if (probes == null) {
+									probes = new ArrayList<PyOCD.Probe>();
 								}
-								if (probe.fName.equalsIgnoreCase("generic")) {
-									itemList.add(String.format("%s (%s)", desc, probe.fUniqueId));
+								if (Activator.getInstance().isDebugging()) {
+									System.out.printf("probes = %s\n", probes);
+								}
+	
+								Collections.sort(probes, PyOCD.Probe.COMPARATOR);
+	
+								fProbes = probes;
+								
+								// Figure out if the selected probe is connected.
+								int currentProbeIndex = indexForProbeId(fSelectedProbeId);
+								if (currentProbeIndex == -1) {
+									fProbeIdListHasUnavailableItem = true;
+									fProbeIdListUnavailableId = fSelectedProbeId;
+									itemList.add(String.format("[Unconnected probe] (%s)", fSelectedProbeId));
 								}
 								else {
-									itemList.add(String.format("%s: %s (%s)", desc, probe.fName, probe.fUniqueId));
+									fProbeIdListHasUnavailableItem = false;
+								}
+	
+								for (PyOCD.Probe probe : probes) {
+									String desc = probe.fProductName;
+									if (!probe.fProductName.startsWith(probe.fVendorName)) {
+										desc = probe.fVendorName + " " + probe.fProductName;
+									}
+									if (probe.fName.equalsIgnoreCase("generic")) {
+										itemList.add(String.format("%s (%s)", desc, probe.fUniqueId));
+									}
+									else {
+										itemList.add(String.format("%s: %s (%s)", desc, probe.fName, probe.fUniqueId));
+									}
 								}
 							}
 
-							String[] items = itemList.toArray(new String[itemList.size()]);
+							final String[] items = itemList.toArray(new String[itemList.size()]);
 
 							SystemUIJob updateJob = new SystemUIJob("update probes") {
 								@Override
 								public IStatus runInUIThread(IProgressMonitor monitor) {
-									fGdbServerProbeId.setItems(items);
+									if (isOK) {
+										fGdbServerProbeId.setItems(items);
 
-									selectActiveProbe();
+										selectActiveProbe();
+									}
 									
 									scheduleUpdateJob();
+									
+									fGdbServerRefreshingLabel.setVisible(false);
 									
 									return Status.OK_STATUS;
 								}
 							};
 							updateJob.schedule();
-							
-							synchronized (this) {
-								fOutstandingProbesLoad = false;
-							}
-						}
-						
-						@Override
-						protected void handleError() {
-							setPyocdError(getStatus(), true);
-							
-							synchronized (this) {
-								fOutstandingProbesLoad = false;
-							}
 						}
 					}
 			);
@@ -1272,75 +1279,77 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			
 			synchronized (this) {
 				fOutstandingTargetsLoad = true;
+				fGdbServerRefreshingLabel.setVisible(true);
 			}
 			
 			PyOCD.getInstance().getTargets(path,
 					new ImmediateDataRequestMonitor<List<PyOCD.Target>>() {
 						@Override
-						protected void handleSuccess() {
+						protected void handleCompleted() {
+							synchronized (this) {
+								fOutstandingTargetsLoad = false;
+							}
+
 							if (!fIsActive) {
 								if (Activator.getInstance().isDebugging()) {
 									System.out.printf("(targets) bailing on updating debugger tab because it's no longer active\n");
 								}
-								synchronized (this) {
-									fOutstandingTargetsLoad = false;
-								}
 								return;
 							}
 							
-							clearPyocdErrors(false);
-							setMessage(null);
+							ArrayList<String> itemList = new ArrayList<String>();
 							
-							List<PyOCD.Target> targets = getData();
+							IStatus status = getStatus();
+							final boolean isOK = status.isOK();
+							if (!isOK) {
+								setPyocdError(getStatus(), false);
+							}
+							else {
+								clearPyocdErrors(false);
+								setMessage(null);
 							
-							if (targets == null) {
-								targets = new ArrayList<PyOCD.Target>();
+								List<PyOCD.Target> targets = getData();
+								
+								if (targets == null) {
+									targets = new ArrayList<PyOCD.Target>();
+								}
+								if (Activator.getInstance().isDebugging()) {
+									System.out.printf("target = %s\n", targets);
+								}
+	
+								Collections.sort(targets, PyOCD.Target.PART_NUMBER_COMPARATOR);
+								
+								// Create maps to go between target part number and name.
+								fTargetsByPartNumber = new HashMap<>();
+								fTargetsByName = new HashMap<>();
+	
+								
+								for (PyOCD.Target target : targets) {
+									itemList.add(String.format("%s", target.getFullPartName()));
+									fTargetsByPartNumber.put(target.fPartNumber, target);
+									fTargetsByName.put(target.fName, target);
+								}
 							}
-							if (Activator.getInstance().isDebugging()) {
-								System.out.printf("target = %s\n", targets);
-							}
-
-							Collections.sort(targets, PyOCD.Target.PART_NUMBER_COMPARATOR);
-							
-							// Create maps to go between target part number and name.
-							fTargetsByPartNumber = new HashMap<>();
-							fTargetsByName = new HashMap<>();
-
-							final ArrayList<String> itemList = new ArrayList<String>();
-							for (PyOCD.Target target : targets) {
-								itemList.add(String.format("%s", target.getFullPartName()));
-								fTargetsByPartNumber.put(target.fPartNumber, target);
-								fTargetsByName.put(target.fName, target);
-							}
-							String[] items = itemList.toArray(new String[itemList.size()]);
+							final String[] itemsToUpdate = itemList.toArray(new String[itemList.size()]);
 
 							SystemUIJob updateJob = new SystemUIJob("update targets") {
 								@Override
 								public IStatus runInUIThread(IProgressMonitor monitor) {
-									fGdbServerTargetName.setItems(items);
+									if (isOK) {
+										fGdbServerTargetName.setItems(itemsToUpdate);
 
-									// Select current target from config.
-									selectActiveTarget();
+										// Select current target from config.
+										selectActiveTarget();
+									}
 									
 									scheduleUpdateJob();
+									
+									fGdbServerRefreshingLabel.setVisible(false);
 									
 									return Status.OK_STATUS;
 								}
 							};
 							updateJob.schedule();
-							
-							synchronized (this) {
-								fOutstandingTargetsLoad = false;
-							}
-						}
-						
-						@Override
-						protected void handleError() {
-							setPyocdError(getStatus(), false);
-							
-							synchronized (this) {
-								fOutstandingTargetsLoad = false;
-							}
 						}
 					}
 				);
