@@ -315,8 +315,6 @@ public class PyOCD {
 				new DataRequestMonitor<JSONObject>(fExecutor, rm) {
 					@Override
 					protected void handleSuccess() {
-						// System.out.printf("pyOCD boards = %s\n", output);
-						
 						JSONObject output = getData();
 						
 						if (!(checkOutput(output) && output.containsKey(PROBES_KEY))) {
@@ -370,8 +368,6 @@ public class PyOCD {
 				new DataRequestMonitor<JSONObject>(fExecutor, rm) {
 					@Override
 					protected void handleSuccess() {
-						// System.out.printf("pyOCD targets = %s\n", output);
-				
 						JSONObject output = getData();
 						
 						if (!(checkOutput(output) && output.containsKey(TARGETS_KEY))) {
