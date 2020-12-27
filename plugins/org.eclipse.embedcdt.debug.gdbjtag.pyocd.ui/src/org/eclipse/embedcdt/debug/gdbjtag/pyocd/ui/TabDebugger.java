@@ -98,10 +98,10 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	/** The launch configuration this GUI is showing/modifying */
 	private ILaunchConfiguration fConfiguration;
 
-	private List<PyOCD.Board> fBoards;
-	private String fSelectedBoardId;
-	private boolean fBoardIdListHasUnavailableItem; //!< Whether the boards list includes an item for the board in the config that is not currently connected.
-	private String fBoardIdListUnavailableId; //!< Board ID for the unavailable item.
+	private List<PyOCD.Probe> fProbes;
+	private String fSelectedProbeId;
+	private boolean fProbeIdListHasUnavailableItem; //!< Whether the probes list includes an item for the probe in the config that is not currently connected.
+	private String fProbeIdListUnavailableId; //!< Probe ID for the unavailable item.
 	private Map<String, PyOCD.Target> fTargetsByPartNumber; //!< Maps part number (user friendly name) to target object.
 	private Map<String, PyOCD.Target> fTargetsByName; //!< Maps target name to target object.
 
@@ -117,8 +117,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	private Text fTargetIpAddress;
 	private Text fTargetPortNumber;
 
-	private Combo fGdbServerBoardId;
-	private Button fGdbServerRefreshBoards;
+	private Combo fGdbServerProbeId;
+	private Button fGdbServerRefreshProbes;
 
 	private Text fGdbServerGdbPort;
 	private Text fGdbServerTelnetPort;
@@ -433,19 +433,19 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 		{
 			Label label = new Label(comp, SWT.NONE);
-			label.setText(Messages.getString("DebuggerTab.gdbServerBoardId_Label"));
-			label.setToolTipText(Messages.getString("DebuggerTab.gdbServerBoardId_ToolTipText"));
+			label.setText(Messages.getString("DebuggerTab.gdbServerProbeId_Label"));
+			label.setToolTipText(Messages.getString("DebuggerTab.gdbServerProbeId_ToolTipText"));
 
 			Composite local = createHorizontalLayout(comp, 2, 1);
 			{
-				fGdbServerBoardId = new Combo(local, SWT.DROP_DOWN | SWT.READ_ONLY);
+				fGdbServerProbeId = new Combo(local, SWT.DROP_DOWN | SWT.READ_ONLY);
 				GridData gd = new GridData(GridData.FILL_HORIZONTAL);
-				fGdbServerBoardId.setLayoutData(gd);
-				fGdbServerBoardId.setItems(new String[] {});
-				fGdbServerBoardId.select(0);
+				fGdbServerProbeId.setLayoutData(gd);
+				fGdbServerProbeId.setItems(new String[] {});
+				fGdbServerProbeId.select(0);
 
-				fGdbServerRefreshBoards = new Button(local, SWT.NONE);
-				fGdbServerRefreshBoards.setText(Messages.getString("DebuggerTab.gdbServerRefreshBoards_Label"));
+				fGdbServerRefreshProbes = new Button(local, SWT.NONE);
+				fGdbServerRefreshProbes.setText(Messages.getString("DebuggerTab.gdbServerRefreshProbes_Label"));
 			}
 		}
 
@@ -601,7 +601,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			@Override
 			public void modifyText(ModifyEvent e) {
 				if (fConfiguration != null) {
-					updateBoards();
+					updateProbes();
 					updateTargets();
 				}
 
@@ -664,18 +664,18 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			}
 		});
 
-		fGdbServerBoardId.addSelectionListener(new SelectionAdapter() {
+		fGdbServerProbeId.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
-				boardSelected(((Combo) e.widget).getSelectionIndex());
+				probeWasSelected(((Combo) e.widget).getSelectionIndex());
 				scheduleUpdateJob();
 			}
 		});
 
-		fGdbServerRefreshBoards.addSelectionListener(new SelectionAdapter() {
+		fGdbServerRefreshProbes.addSelectionListener(new SelectionAdapter() {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
-				updateBoards();
+				updateProbes();
 			}
 		});
 
@@ -1034,12 +1034,12 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		return path;
 	}
 
-	private int indexForBoardId(String boardId) {
-		// Search for a matching board.
-		if (fBoards != null) {
+	private int indexForProbeId(String probeId) {
+		// Search for a matching probe.
+		if (fProbes != null) {
 			int index = 0;
-			for (PyOCD.Board b : fBoards) {
-				if (b.fUniqueId.equals(boardId)) {
+			for (PyOCD.Probe b : fProbes) {
+				if (b.fUniqueId.equals(probeId)) {
 					return index;
 				}
 				index += 1;
@@ -1048,32 +1048,32 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		return -1;
 	}
 
-	private void boardSelected(int index) {
-		if (fBoardIdListHasUnavailableItem) {
+	private void probeWasSelected(int index) {
+		if (fProbeIdListHasUnavailableItem) {
 			if (index == 0) {
-				fSelectedBoardId = fBoardIdListUnavailableId;
+				fSelectedProbeId = fProbeIdListUnavailableId;
 				return;
 			}
 			else {
 				index -= 1;
 			}
 		}
-		PyOCD.Board selectedBoard = fBoards.get(index);
-		fSelectedBoardId = selectedBoard.fUniqueId;
+		PyOCD.Probe selectedProbe = fProbes.get(index);
+		fSelectedProbeId = selectedProbe.fUniqueId;
 	}
 
-	private void selectActiveBoard() {
-		// Get current board ID.
-		int index = indexForBoardId(fSelectedBoardId);
+	private void selectActiveProbe() {
+		// Get current probe ID.
+		int index = indexForProbeId(fSelectedProbeId);
 		if (index != -1) {
-			if (fBoardIdListHasUnavailableItem) {
+			if (fProbeIdListHasUnavailableItem) {
 				index += 1;
 			}
 			
-			fGdbServerBoardId.select(index);
+			fGdbServerProbeId.select(index);
 		} else {
-			assert(fBoardIdListHasUnavailableItem);
-			fGdbServerBoardId.select(0);
+			assert(fProbeIdListHasUnavailableItem);
+			fGdbServerProbeId.select(0);
 		}
 	}
 	
@@ -1143,7 +1143,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		}
 	}
 
-	private void updateBoards() {
+	private void updateProbes() {
 		synchronized (this) {
 			if (fOutstandingProbesLoad) {
 				if (Activator.getInstance().isDebugging()) {
@@ -1162,8 +1162,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 				fOutstandingProbesLoad = true;
 			}
 			
-			PyOCD.getInstance().getBoards(path,
-					new ImmediateDataRequestMonitor<List<PyOCD.Board>>() {
+			PyOCD.getInstance().getProbes(path,
+					new ImmediateDataRequestMonitor<List<PyOCD.Probe>>() {
 						@Override
 						protected void handleSuccess() {
 							if (!fIsActive) {
@@ -1179,53 +1179,53 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 							clearPyocdErrors(true);
 							setMessage(null);
 							
-							List<PyOCD.Board> boards = getData();
+							List<PyOCD.Probe> probes = getData();
 							
-							if (boards == null) {
-								boards = new ArrayList<PyOCD.Board>();
+							if (probes == null) {
+								probes = new ArrayList<PyOCD.Probe>();
 							}
 							if (Activator.getInstance().isDebugging()) {
-								System.out.printf("board = %s\n", boards);
+								System.out.printf("probes = %s\n", probes);
 							}
 
-							Collections.sort(boards, PyOCD.Board.COMPARATOR);
+							Collections.sort(probes, PyOCD.Probe.COMPARATOR);
 
-							fBoards = boards;
+							fProbes = probes;
 							
 							final ArrayList<String> itemList = new ArrayList<String>();
 							
-							// Figure out if the selected board is connected.
-							int currentBoardIndex = indexForBoardId(fSelectedBoardId);
-							if (currentBoardIndex == -1) {
-								fBoardIdListHasUnavailableItem = true;
-								fBoardIdListUnavailableId = fSelectedBoardId;
-								itemList.add(String.format("[Unconnected probe] (%s)", fSelectedBoardId));
+							// Figure out if the selected probe is connected.
+							int currentProbeIndex = indexForProbeId(fSelectedProbeId);
+							if (currentProbeIndex == -1) {
+								fProbeIdListHasUnavailableItem = true;
+								fProbeIdListUnavailableId = fSelectedProbeId;
+								itemList.add(String.format("[Unconnected probe] (%s)", fSelectedProbeId));
 							}
 							else {
-								fBoardIdListHasUnavailableItem = false;
+								fProbeIdListHasUnavailableItem = false;
 							}
 
-							for (PyOCD.Board board : boards) {
-								String desc = board.fProductName;
-								if (!board.fProductName.startsWith(board.fVendorName)) {
-									desc = board.fVendorName + " " + board.fProductName;
+							for (PyOCD.Probe probe : probes) {
+								String desc = probe.fProductName;
+								if (!probe.fProductName.startsWith(probe.fVendorName)) {
+									desc = probe.fVendorName + " " + probe.fProductName;
 								}
-								if (board.fName.equalsIgnoreCase("generic")) {
-									itemList.add(String.format("%s (%s)", desc, board.fUniqueId));
+								if (probe.fName.equalsIgnoreCase("generic")) {
+									itemList.add(String.format("%s (%s)", desc, probe.fUniqueId));
 								}
 								else {
-									itemList.add(String.format("%s: %s (%s)", desc, board.fName, board.fUniqueId));
+									itemList.add(String.format("%s: %s (%s)", desc, probe.fName, probe.fUniqueId));
 								}
 							}
 
 							String[] items = itemList.toArray(new String[itemList.size()]);
 
-							SystemUIJob updateJob = new SystemUIJob("update boards") {
+							SystemUIJob updateJob = new SystemUIJob("update probes") {
 								@Override
 								public IStatus runInUIThread(IProgressMonitor monitor) {
-									fGdbServerBoardId.setItems(items);
+									fGdbServerProbeId.setItems(items);
 
-									selectActiveBoard();
+									selectActiveProbe();
 									
 									scheduleUpdateJob();
 									
@@ -1251,7 +1251,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			);
 		}
 		else {
-			fGdbServerBoardId.setItems(new String[] {});
+			fGdbServerProbeId.setItems(new String[] {});
 		}
 	}
 
@@ -1385,10 +1385,10 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 						.toString(configuration.getAttribute(ConfigurationAttributes.GDB_SERVER_TELNET_PORT_NUMBER,
 								DefaultPreferences.GDB_SERVER_TELNET_PORT_NUMBER_DEFAULT)));
 
-				// Board ID
-				fSelectedBoardId = configuration.getAttribute(ConfigurationAttributes.GDB_SERVER_BOARD_ID,
+				// Probe ID
+				fSelectedProbeId = configuration.getAttribute(ConfigurationAttributes.GDB_SERVER_BOARD_ID,
 						DefaultPreferences.GDB_SERVER_BOARD_ID_DEFAULT);
-				selectActiveBoard();
+				selectActiveProbe();
 
 				// Target override
 				fGdbServerOverrideTarget
@@ -1487,7 +1487,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 			doStartGdbServerChanged();
 			overrideTargetChanged();
-			updateBoards();
+			updateProbes();
 			updateTargets();
 
 			// Force thread update
@@ -1593,7 +1593,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 		doStartGdbServerChanged();
 		overrideTargetChanged();
-		updateBoards();
+		updateProbes();
 		updateTargets();
 
 		// Force thread update
@@ -1744,9 +1744,9 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 				Activator.log("empty fGdbServerTelnetPort");
 			}
 
-			// Board ID
-			if (fSelectedBoardId != null) {
-				configuration.setAttribute(ConfigurationAttributes.GDB_SERVER_BOARD_ID, fSelectedBoardId);
+			// Probe ID
+			if (fSelectedProbeId != null) {
+				configuration.setAttribute(ConfigurationAttributes.GDB_SERVER_BOARD_ID, fSelectedProbeId);
 			}
 
 			// Target override
@@ -1904,7 +1904,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			configuration.setAttribute(ConfigurationAttributes.GDB_SERVER_TELNET_PORT_NUMBER,
 					DefaultPreferences.GDB_SERVER_TELNET_PORT_NUMBER_DEFAULT);
 
-			// Board ID
+			// Probe ID
 			configuration.setAttribute(ConfigurationAttributes.GDB_SERVER_BOARD_ID,
 					DefaultPreferences.GDB_SERVER_BOARD_ID_DEFAULT);
 

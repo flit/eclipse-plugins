@@ -58,15 +58,15 @@ public class PyOCD {
 	public static final String VERSION_MINOR_KEY = "minor";
 	public static final String STATUS_KEY = "status";
 	public static final String ERROR_KEY = "error";
-	public static final String BOARDS_KEY = "boards";
+	public static final String PROBES_KEY = "boards"; // Yes, this is correct!
 	public static final String TARGETS_KEY = "targets";
 
-	public static final String BOARD_INFO_KEY = "info";
-	public static final String BOARD_NAME_KEY = "board_name";
-	public static final String BOARD_VENDOR_NAME_KEY = "vendor_name";
-	public static final String BOARD_PRODUCT_NAME_KEY = "product_name";
-	public static final String BOARD_TARGET_KEY = "target";
-	public static final String BOARD_UNIQUE_ID_KEY = "unique_id";
+	public static final String PROBE_INFO_KEY = "info";
+	public static final String PROBE_NAME_KEY = "board_name";
+	public static final String PROBE_VENDOR_NAME_KEY = "vendor_name";
+	public static final String PROBE_PRODUCT_NAME_KEY = "product_name";
+	public static final String PROBE_TARGET_KEY = "target";
+	public static final String PROBE_UNIQUE_ID_KEY = "unique_id";
 
 	public static final String TARGET_NAME_KEY = "name";
 	public static final String TARGET_VENDOR_KEY = "vendor";
@@ -96,10 +96,10 @@ public class PyOCD {
 	}
 
 	/**
-	 * Info about an available board.
+	 * Info about an available probe.
 	 *
 	 */
-	public static class Board {
+	public static class Probe {
 		public String fName;
 		public String fVendorName;
 		public String fProductName;
@@ -112,15 +112,15 @@ public class PyOCD {
 		/**
 		 * Comparator to sort boards by name.
 		 */
-		private static class Comparator implements java.util.Comparator<Board> {
-			public int compare(Board o1, Board o2) {
+		private static class Comparator implements java.util.Comparator<Probe> {
+			public int compare(Probe o1, Probe o2) {
 				return o1.fName.compareTo(o2.fName);
 			}
 		}
 
 		@Override
 		public String toString() {
-			return String.format("<Board: %s [%s] %s>", fName, fTargetName, fUniqueId);
+			return String.format("<Probe: %s [%s] %s>", fName, fTargetName, fUniqueId);
 		}
 	}
 
@@ -240,7 +240,7 @@ public class PyOCD {
 		fExecutor = new DefaultDsfExecutor();
 	}
 	
-	public void getBoards(ILaunchConfiguration configuration, final DataRequestMonitor<List<Board>> rm) {
+	public void getProbes(ILaunchConfiguration configuration, final DataRequestMonitor<List<Probe>> rm) {
 
 		String pyOCDPath = Configuration.getGdbServerCommand(configuration, null);
 		if (pyOCDPath == null) {
@@ -249,7 +249,7 @@ public class PyOCD {
 			rm.done();
 		}
 		else {
-			getBoards(pyOCDPath, rm);
+			getProbes(pyOCDPath, rm);
 		}
 	}
 
@@ -309,7 +309,7 @@ public class PyOCD {
 		return true;
 	}
 
-	public void getBoards(String pyOCDPath, final DataRequestMonitor<List<Board>> rm) {
+	public void getProbes(String pyOCDPath, final DataRequestMonitor<List<Probe>> rm) {
 
 		getJsonOutput(pyOCDPath, "--probes",
 				new DataRequestMonitor<JSONObject>(fExecutor, rm) {
@@ -319,37 +319,37 @@ public class PyOCD {
 						
 						JSONObject output = getData();
 						
-						if (!(checkOutput(output) && output.containsKey(BOARDS_KEY))) {
+						if (!(checkOutput(output) && output.containsKey(PROBES_KEY))) {
 							rm.setStatus(new Status(IStatus.ERROR, Activator.PLUGIN_ID,
 									Errors.ERROR_INVALID_JSON_FORMAT, "invalid output", null));
 							rm.done();
 							return;
 						}
 				
-						Object boardsObj = output.get(BOARDS_KEY);
-						if (!(boardsObj instanceof JSONArray)) {
+						Object probesObj = output.get(PROBES_KEY);
+						if (!(probesObj instanceof JSONArray)) {
 							rm.setStatus(new Status(IStatus.ERROR, Activator.PLUGIN_ID,
-									Errors.ERROR_INVALID_JSON_FORMAT, "invalid boards key type", null));
+									Errors.ERROR_INVALID_JSON_FORMAT, "invalid probes key type", null));
 							rm.done();
 							return;
 						}
 				
-						JSONArray boards = (JSONArray) boardsObj;
+						JSONArray probes = (JSONArray) probesObj;
 				
-						ArrayList<Board> result = new ArrayList<Board>();
-						for (Object b : boards) {
+						ArrayList<Probe> result = new ArrayList<Probe>();
+						for (Object b : probes) {
 							try {
 								JSONObject bobj = (JSONObject) b;
 				
-								Board boardInfo = new Board();
-								boardInfo.fDescription = (String) bobj.get(BOARD_INFO_KEY);
-								boardInfo.fName = (String) bobj.get(BOARD_NAME_KEY);
-								boardInfo.fVendorName = (String) bobj.get(BOARD_VENDOR_NAME_KEY);
-								boardInfo.fProductName = (String) bobj.get(BOARD_PRODUCT_NAME_KEY);
-								boardInfo.fTargetName = (String) bobj.get(BOARD_TARGET_KEY);
-								boardInfo.fUniqueId = (String) bobj.get(BOARD_UNIQUE_ID_KEY);
+								Probe probeInfo = new Probe();
+								probeInfo.fDescription = (String) bobj.get(PROBE_INFO_KEY);
+								probeInfo.fName = (String) bobj.get(PROBE_NAME_KEY);
+								probeInfo.fVendorName = (String) bobj.get(PROBE_VENDOR_NAME_KEY);
+								probeInfo.fProductName = (String) bobj.get(PROBE_PRODUCT_NAME_KEY);
+								probeInfo.fTargetName = (String) bobj.get(PROBE_TARGET_KEY);
+								probeInfo.fUniqueId = (String) bobj.get(PROBE_UNIQUE_ID_KEY);
 				
-								result.add(boardInfo);
+								result.add(probeInfo);
 							} catch (Exception e) {
 								if (Activator.getInstance().isDebugging()) {
 									System.out.printf("Exception extracting probe info: %s\n", e);
