@@ -133,7 +133,6 @@ public class PyOCD {
 		public String fVendor;
 		public String fPartNumber;
 		public String fFamilies[];
-		public String fSvdPath;
 
 		public static final NameComparator NAME_COMPARATOR = new NameComparator();
 		public static final PartNumberComparator PART_NUMBER_COMPARATOR = new PartNumberComparator();
@@ -401,7 +400,6 @@ public class PyOCD {
 								targetInfo.fName = (String) tobj.get(TARGET_NAME_KEY);
 								targetInfo.fVendor = (String) tobj.get(TARGET_VENDOR_KEY);
 								targetInfo.fPartNumber = (String) tobj.get(TARGET_PART_NUMBER_KEY);
-								targetInfo.fSvdPath = (String) tobj.get(TARGET_SVD_PATH_KEY);
 								
 								if (tobj.containsKey(TARGET_FAMILIES_KEY)) {
 									JSONArray families = (JSONArray)tobj.get(TARGET_FAMILIES_KEY);
