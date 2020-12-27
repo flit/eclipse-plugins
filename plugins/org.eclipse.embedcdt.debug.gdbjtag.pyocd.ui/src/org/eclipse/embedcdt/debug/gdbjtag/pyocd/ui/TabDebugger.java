@@ -153,6 +153,11 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 	private DefaultPreferences fDefaultPreferences;
 	private PersistentPreferences fPersistentPreferences;
+	
+	private boolean fOutstandingProbesLoad = false;
+	private boolean fOutstandingTargetsLoad = false;
+	
+	private boolean fIsActive = false;
 
 	/**
 	 * Where widgets in a row are rendered in columns, the amount of padding (in
@@ -164,6 +169,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 //	private static final int MIN_PYOCD_MINOR_VERSION = 14;
 
 	private static class Msgs {
+		public static final String LOADING_PROBES = "DebuggerTab.loading_probes";
+		public static final String LOADING_TARGETS = "DebuggerTab.loading_targets";
 		public static final String INVALID_PYOCD_EXECUTABLE = "DebuggerTab.invalid_pyocd_executable";
 		public static final String OLD_PYOCD_EXECUTABLE = "DebuggerTab.old_pyocd_executable";
 		public static final String PROBES_FAILURE_PARSING_PYOCD_OUTPUT = "DebuggerTab.probes_failure_parsing_output";
@@ -1137,13 +1144,40 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	}
 
 	private void updateBoards() {
+		synchronized (this) {
+			if (fOutstandingProbesLoad) {
+				if (Activator.getInstance().isDebugging()) {
+					System.out.printf("skipping probes load due to outstanding load\n");
+				}
+				return;
+			}
+		}
+		
 		String path = getPyOCDExecutablePath();
 		if (path != null) {
+			setMessage(Messages.getString(Msgs.LOADING_PROBES));
+//			scheduleUpdateJob();
+			
+			synchronized (this) {
+				fOutstandingProbesLoad = true;
+			}
+			
 			PyOCD.getInstance().getBoards(path,
 					new ImmediateDataRequestMonitor<List<PyOCD.Board>>() {
 						@Override
 						protected void handleSuccess() {
+							if (!fIsActive) {
+								if (Activator.getInstance().isDebugging()) {
+									System.out.printf("(probes) bailing on updating debugger tab because it's no longer active\n");
+								}
+								synchronized (this) {
+									fOutstandingProbesLoad = false;
+								}
+								return;
+							}
+						
 							clearPyocdErrors(true);
+							setMessage(null);
 							
 							List<PyOCD.Board> boards = getData();
 							
@@ -1199,12 +1233,19 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 								}
 							};
 							updateJob.schedule();
-
+							
+							synchronized (this) {
+								fOutstandingProbesLoad = false;
+							}
 						}
 						
 						@Override
 						protected void handleError() {
 							setPyocdError(getStatus(), true);
+							
+							synchronized (this) {
+								fOutstandingProbesLoad = false;
+							}
 						}
 					}
 			);
@@ -1215,13 +1256,40 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	}
 
 	private void updateTargets() {
+		synchronized (this) {
+			if (fOutstandingTargetsLoad) {
+				if (Activator.getInstance().isDebugging()) {
+					System.out.printf("skipping targets load due to outstanding load\n");
+				}
+				return;
+			}
+		}
+		
 		String path = getPyOCDExecutablePath();
 		if (path != null) {
+			setMessage(Messages.getString(Msgs.LOADING_TARGETS));
+//			scheduleUpdateJob();
+			
+			synchronized (this) {
+				fOutstandingTargetsLoad = true;
+			}
+			
 			PyOCD.getInstance().getTargets(path,
 					new ImmediateDataRequestMonitor<List<PyOCD.Target>>() {
 						@Override
 						protected void handleSuccess() {
+							if (!fIsActive) {
+								if (Activator.getInstance().isDebugging()) {
+									System.out.printf("(targets) bailing on updating debugger tab because it's no longer active\n");
+								}
+								synchronized (this) {
+									fOutstandingTargetsLoad = false;
+								}
+								return;
+							}
+							
 							clearPyocdErrors(false);
+							setMessage(null);
 							
 							List<PyOCD.Target> targets = getData();
 							
@@ -1260,11 +1328,19 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 								}
 							};
 							updateJob.schedule();
+							
+							synchronized (this) {
+								fOutstandingTargetsLoad = false;
+							}
 						}
 						
 						@Override
 						protected void handleError() {
 							setPyocdError(getStatus(), false);
+							
+							synchronized (this) {
+								fOutstandingTargetsLoad = false;
+							}
 						}
 					}
 				);
@@ -1276,7 +1352,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 	@Override
 	public void initializeFrom(ILaunchConfiguration configuration) {
-
+		fIsActive = true;
+		
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.initializeFrom() " + configuration.getName());
 		}
@@ -1429,6 +1506,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	}
 
 	public void initializeFromDefaults() {
+		fIsActive = true;
 
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.initializeFromDefaults()");
@@ -1548,6 +1626,14 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		}
 		// Do nothing. Override is necessary to avoid heavy unnecessary Apply
 		// (see super implementation)
+	}
+	
+	@Override
+	public void dispose() {
+		if (Activator.getInstance().isDebugging()) {
+			System.out.println("pyocd.TabDebugger.dispose()");
+		}
+		fIsActive = false;
 	}
 
 	@Override
