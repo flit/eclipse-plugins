@@ -35,6 +35,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.eclipse.cdt.debug.gdbjtag.core.IGDBJtagConstants;
 import org.eclipse.cdt.debug.gdbjtag.ui.GDBJtagImages;
@@ -155,10 +156,10 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	private DefaultPreferences fDefaultPreferences;
 	private PersistentPreferences fPersistentPreferences;
 	
-	private boolean fOutstandingProbesLoad = false;
-	private boolean fOutstandingTargetsLoad = false;
+	private AtomicBoolean fOutstandingProbesLoad = new AtomicBoolean(false);
+	private AtomicBoolean fOutstandingTargetsLoad = new AtomicBoolean(false);
 	
-	private boolean fIsActive = false;
+	private AtomicBoolean fIsActive = new AtomicBoolean(false);
 
 	/**
 	 * Where widgets in a row are rendered in columns, the amount of padding (in
@@ -1151,13 +1152,11 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	}
 
 	private void updateProbes() {
-		synchronized (this) {
-			if (fOutstandingProbesLoad) {
-				if (Activator.getInstance().isDebugging()) {
-					System.out.printf("skipping probes load due to outstanding load\n");
-				}
-				return;
+		if (fOutstandingProbesLoad.getAcquire()) {
+			if (Activator.getInstance().isDebugging()) {
+				System.out.printf("skipping probes load due to outstanding load\n");
 			}
+			return;
 		}
 		
 		String path = getPyOCDExecutablePath();
@@ -1165,20 +1164,16 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			setMessage(Messages.getString(Msgs.LOADING_PROBES));
 //			scheduleUpdateJob();
 			
-			synchronized (this) {
-				fOutstandingProbesLoad = true;
-				fGdbServerRefreshingLabel.setVisible(true);
-			}
+			fOutstandingProbesLoad.setRelease(true);
+			fGdbServerRefreshingLabel.setVisible(true);
 			
 			PyOCD.getInstance().getProbes(path,
 					new ImmediateDataRequestMonitor<List<PyOCD.Probe>>() {
 						@Override
 						protected void handleCompleted() {
-							synchronized (this) {
-								fOutstandingProbesLoad = false;
-							}
+							fOutstandingProbesLoad.setRelease(false);
 
-							if (!fIsActive) {
+							if (!fIsActive.getAcquire()) {
 								if (Activator.getInstance().isDebugging()) {
 									System.out.printf("(probes) bailing on updating debugger tab because it's no longer active\n");
 								}
@@ -1263,13 +1258,11 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	}
 
 	private void updateTargets() {
-		synchronized (this) {
-			if (fOutstandingTargetsLoad) {
-				if (Activator.getInstance().isDebugging()) {
-					System.out.printf("skipping targets load due to outstanding load\n");
-				}
-				return;
+		if (fOutstandingTargetsLoad.getAcquire()) {
+			if (Activator.getInstance().isDebugging()) {
+				System.out.printf("skipping targets load due to outstanding load\n");
 			}
+			return;
 		}
 		
 		String path = getPyOCDExecutablePath();
@@ -1277,20 +1270,16 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			setMessage(Messages.getString(Msgs.LOADING_TARGETS));
 //			scheduleUpdateJob();
 			
-			synchronized (this) {
-				fOutstandingTargetsLoad = true;
-				fGdbServerRefreshingLabel.setVisible(true);
-			}
+			fOutstandingTargetsLoad.setRelease(true);
+			fGdbServerRefreshingLabel.setVisible(true);
 			
 			PyOCD.getInstance().getTargets(path,
 					new ImmediateDataRequestMonitor<List<PyOCD.Target>>() {
 						@Override
 						protected void handleCompleted() {
-							synchronized (this) {
-								fOutstandingTargetsLoad = false;
-							}
+							fOutstandingTargetsLoad.setRelease(false);
 
-							if (!fIsActive) {
+							if (!fIsActive.getAcquire()) {
 								if (Activator.getInstance().isDebugging()) {
 									System.out.printf("(targets) bailing on updating debugger tab because it's no longer active\n");
 								}
@@ -1361,7 +1350,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 	@Override
 	public void initializeFrom(ILaunchConfiguration configuration) {
-		fIsActive = true;
+		fIsActive.setRelease(true);
 		
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.initializeFrom() " + configuration.getName());
@@ -1515,7 +1504,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	}
 
 	public void initializeFromDefaults() {
-		fIsActive = true;
+		fIsActive.setRelease(true);
 
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.initializeFromDefaults()");
@@ -1642,7 +1631,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.dispose()");
 		}
-		fIsActive = false;
+		fIsActive.setRelease(false);
 	}
 
 	@Override
