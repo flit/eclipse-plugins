@@ -1308,7 +1308,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 							final ArrayList<String> itemList = new ArrayList<String>();
 							for (PyOCD.Target target : targets) {
-								itemList.add(String.format("%s", target.fPartNumber));
+								itemList.add(String.format("%s", target.getFullPartName()));
 								fTargetsByPartNumber.put(target.fPartNumber, target);
 								fTargetsByName.put(target.fName, target);
 							}

@@ -69,6 +69,8 @@ public class PyOCD {
 	public static final String BOARD_UNIQUE_ID_KEY = "unique_id";
 
 	public static final String TARGET_NAME_KEY = "name";
+	public static final String TARGET_VENDOR_KEY = "vendor";
+	public static final String TARGET_FAMILIES_KEY = "part_families";
 	public static final String TARGET_PART_NUMBER_KEY = "part_number";
 	public static final String TARGET_SVD_PATH_KEY = "svd_path";
 
@@ -128,11 +130,22 @@ public class PyOCD {
 	 */
 	public static class Target {
 		public String fName;
+		public String fVendor;
 		public String fPartNumber;
+		public String fFamilies[];
 		public String fSvdPath;
 
 		public static final NameComparator NAME_COMPARATOR = new NameComparator();
 		public static final PartNumberComparator PART_NUMBER_COMPARATOR = new PartNumberComparator();
+		
+		public String getFullPartName() {
+			if (fVendor != null) {
+				return fVendor + " " + fPartNumber;
+			}
+			else {
+				return fPartNumber;
+			}
+		}
 
 		/**
 		 * Comparator to sort targets by name.
@@ -148,13 +161,13 @@ public class PyOCD {
 		 */
 		public static class PartNumberComparator implements java.util.Comparator<Target> {
 			public int compare(Target o1, Target o2) {
-				return o1.fPartNumber.compareTo(o2.fPartNumber);
+				return o1.getFullPartName().compareTo(o2.getFullPartName());
 			}
 		}
 
 		@Override
 		public String toString() {
-			return String.format("<Target: %s [%s]>", fName, fPartNumber);
+			return String.format("<Target: %s %s [%s]>", fVendor, fPartNumber, fName);
 		}
 	}
 	
@@ -339,6 +352,9 @@ public class PyOCD {
 				
 								result.add(boardInfo);
 							} catch (Exception e) {
+								if (Activator.getInstance().isDebugging()) {
+									System.out.printf("Exception extracting probe info: %s\n", e);
+								}
 								continue;
 							}
 						}
@@ -383,11 +399,28 @@ public class PyOCD {
 				
 								Target targetInfo = new Target();
 								targetInfo.fName = (String) tobj.get(TARGET_NAME_KEY);
+								targetInfo.fVendor = (String) tobj.get(TARGET_VENDOR_KEY);
 								targetInfo.fPartNumber = (String) tobj.get(TARGET_PART_NUMBER_KEY);
 								targetInfo.fSvdPath = (String) tobj.get(TARGET_SVD_PATH_KEY);
+								
+								if (tobj.containsKey(TARGET_FAMILIES_KEY)) {
+									JSONArray families = (JSONArray)tobj.get(TARGET_FAMILIES_KEY);
+									ArrayList<String> familiesArrayList = new ArrayList<String>();
+									for (Object f : families) {
+										familiesArrayList.add((String)f);
+									}
+									targetInfo.fFamilies = new String[families.size()];
+									familiesArrayList.toArray(targetInfo.fFamilies);
+								}
+								else {
+									targetInfo.fFamilies = new String[] {};
+								}
 				
 								result.add(targetInfo);
 							} catch (Exception e) {
+								if (Activator.getInstance().isDebugging()) {
+									System.out.printf("Exception extracting target info: %s\n", e);
+								}
 								continue;
 							}
 						}
