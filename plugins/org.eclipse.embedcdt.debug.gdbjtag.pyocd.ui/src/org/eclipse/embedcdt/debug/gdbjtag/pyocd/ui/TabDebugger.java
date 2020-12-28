@@ -166,6 +166,12 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	private static class Msgs {
 		public static final String INVALID_PYOCD_EXECUTABLE = "DebuggerTab.invalid_pyocd_executable";
 		public static final String OLD_PYOCD_EXECUTABLE = "DebuggerTab.old_pyocd_executable";
+		public static final String PROBES_FAILURE_PARSING_PYOCD_OUTPUT = "DebuggerTab.probes_failure_parsing_output";
+		public static final String PROBES_FAILURE_INVOKING_PYOCD = "DebuggerTab.probes_failure_invoking_pyocd";
+		public static final String PROBES_PYOCD_TIMEOUT = "DebuggerTab.probes_pyocd_timeout";
+		public static final String TARGETS_FAILURE_PARSING_PYOCD_OUTPUT = "DebuggerTab.targets_failure_parsing_output";
+		public static final String TARGETS_FAILURE_INVOKING_PYOCD = "DebuggerTab.targets_failure_invoking_pyocd";
+		public static final String TARGETS_PYOCD_TIMEOUT = "DebuggerTab.targets_pyocd_timeout";
 		public static final String INVALID_GDBSERVER_PORT = "DebuggerTab.invalid_gdbserver_port";
 		public static final String INVALID_TELNET_PORT = "DebuggerTab.invalid_telnet_port";
 		public static final String INVALID_GDBCLIENT_EXECUTABLE = "DebuggerTab.invalid_gdbclient_executable";
@@ -591,8 +597,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 					updateBoards();
 					updateTargets();
 				}
-				scheduleUpdateJob(); // provides much better performance for
-										// Text listeners
+
 				updateGdbServerActualPath();
 			}
 		});
@@ -978,6 +983,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		// First check if the file is a directory.
 		File file = new File(path);
 		if (!file.exists()) {
+			registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
 			return null;
 		}
 		if (file.isDirectory()) {
@@ -1076,6 +1082,52 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			}
 		}
 	}
+	
+	private void clearPyocdErrors(boolean isProbe) {
+		if (isProbe) {
+			deregisterError(Msgs.PROBES_FAILURE_PARSING_PYOCD_OUTPUT);
+			deregisterError(Msgs.PROBES_FAILURE_INVOKING_PYOCD);
+			deregisterError(Msgs.PROBES_PYOCD_TIMEOUT);
+		}
+		else {
+			deregisterError(Msgs.TARGETS_FAILURE_PARSING_PYOCD_OUTPUT);
+			deregisterError(Msgs.TARGETS_FAILURE_INVOKING_PYOCD);
+			deregisterError(Msgs.TARGETS_PYOCD_TIMEOUT);
+		}
+	}
+	
+	private void setPyocdError(IStatus status, boolean isProbe) {
+		if (isProbe) {
+			switch (status.getCode()) {
+				case PyOCD.Errors.ERROR_INVALID_JSON_FORMAT:
+				case PyOCD.Errors.ERROR_PARSING_OUTPUT:
+					registerError(Msgs.PROBES_FAILURE_PARSING_PYOCD_OUTPUT);
+					break;
+				case PyOCD.Errors.ERROR_TIMEOUT:
+					registerError(Msgs.PROBES_PYOCD_TIMEOUT);
+					break;
+				case PyOCD.Errors.ERROR_RUNNING_PYOCD:
+				default:
+					registerError(Msgs.PROBES_FAILURE_INVOKING_PYOCD);
+					break;
+			}
+		}
+		else {
+			switch (status.getCode()) {
+			case PyOCD.Errors.ERROR_INVALID_JSON_FORMAT:
+			case PyOCD.Errors.ERROR_PARSING_OUTPUT:
+				registerError(Msgs.TARGETS_FAILURE_PARSING_PYOCD_OUTPUT);
+				break;
+			case PyOCD.Errors.ERROR_TIMEOUT:
+				registerError(Msgs.TARGETS_PYOCD_TIMEOUT);
+				break;
+			case PyOCD.Errors.ERROR_RUNNING_PYOCD:
+			default:
+				registerError(Msgs.TARGETS_FAILURE_INVOKING_PYOCD);
+				break;
+		}
+		}
+	}
 
 	private void updateBoards() {
 		String path = getPyOCDExecutablePath();
@@ -1084,6 +1136,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 					new ImmediateDataRequestMonitor<List<PyOCD.Board>>() {
 						@Override
 						protected void handleSuccess() {
+							clearPyocdErrors(true);
+							
 							List<PyOCD.Board> boards = getData();
 							
 							if (boards == null) {
@@ -1132,11 +1186,18 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 									selectActiveBoard();
 									
+									scheduleUpdateJob();
+									
 									return Status.OK_STATUS;
 								}
 							};
 							updateJob.schedule();
 
+						}
+						
+						@Override
+						protected void handleError() {
+							setPyocdError(getStatus(), true);
 						}
 					}
 			);
@@ -1153,6 +1214,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 					new ImmediateDataRequestMonitor<List<PyOCD.Target>>() {
 						@Override
 						protected void handleSuccess() {
+							clearPyocdErrors(false);
+							
 							List<PyOCD.Target> targets = getData();
 							
 							if (targets == null) {
@@ -1184,10 +1247,17 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 									// Select current target from config.
 									selectActiveTarget();
 									
+									scheduleUpdateJob();
+									
 									return Status.OK_STATUS;
 								}
 							};
 							updateJob.schedule();
+						}
+						
+						@Override
+						protected void handleError() {
+							setPyocdError(getStatus(), false);
 						}
 					}
 				);
