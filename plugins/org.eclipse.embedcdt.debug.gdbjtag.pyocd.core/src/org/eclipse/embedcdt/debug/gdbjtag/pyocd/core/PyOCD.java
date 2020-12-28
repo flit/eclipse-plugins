@@ -62,7 +62,7 @@ public class PyOCD {
 	public static final String TARGETS_KEY = "targets";
 
 	public static final String PROBE_INFO_KEY = "info";
-	public static final String PROBE_NAME_KEY = "board_name";
+	public static final String PROBE_BOARD_NAME_KEY = "board_name";
 	public static final String PROBE_VENDOR_NAME_KEY = "vendor_name";
 	public static final String PROBE_PRODUCT_NAME_KEY = "product_name";
 	public static final String PROBE_TARGET_KEY = "target";
@@ -100,14 +100,21 @@ public class PyOCD {
 	 *
 	 */
 	public static class Probe {
-		public String fName;
-		public String fVendorName;
-		public String fProductName;
-		public String fTargetName;
-		public String fDescription;
-		public String fUniqueId;
+		public final String fBoardName;
+		public final String fVendorName;
+		public final String fProductName;
+		public final String fTargetName;
+		public final String fUniqueId;
 
 		public static final Comparator COMPARATOR = new Comparator();
+		
+		Probe(String board, String vendor, String product, String target, String uid) {
+			fBoardName = board;
+			fVendorName = vendor;
+			fProductName = product;
+			fTargetName = target;
+			fUniqueId = uid;
+		}
 
 		/**
 		 * Comparator to sort boards by name.
@@ -129,13 +136,20 @@ public class PyOCD {
 	 *
 	 */
 	public static class Target {
-		public String fName;
-		public String fVendor;
-		public String fPartNumber;
-		public String fFamilies[];
+		public final String fName;
+		public final String fVendor;
+		public final String fPartNumber;
+		public final String fFamilies[];
 
 		public static final NameComparator NAME_COMPARATOR = new NameComparator();
 		public static final PartNumberComparator PART_NUMBER_COMPARATOR = new PartNumberComparator();
+		
+		Target(String name, String vendor, String part, String[] families) {
+			fName = name;
+			fVendor = vendor;
+			fPartNumber = part;
+			fFamilies = families;
+		}
 		
 		public String getFullPartName() {
 			if (fVendor != null) {
@@ -339,13 +353,13 @@ public class PyOCD {
 							try {
 								JSONObject bobj = (JSONObject) b;
 				
-								Probe probeInfo = new Probe();
-								probeInfo.fDescription = (String) bobj.get(PROBE_INFO_KEY);
-								probeInfo.fName = (String) bobj.get(PROBE_NAME_KEY);
-								probeInfo.fVendorName = (String) bobj.get(PROBE_VENDOR_NAME_KEY);
-								probeInfo.fProductName = (String) bobj.get(PROBE_PRODUCT_NAME_KEY);
-								probeInfo.fTargetName = (String) bobj.get(PROBE_TARGET_KEY);
-								probeInfo.fUniqueId = (String) bobj.get(PROBE_UNIQUE_ID_KEY);
+								Probe probeInfo = new Probe(
+														(String) bobj.get(PROBE_BOARD_NAME_KEY),
+														(String) bobj.get(PROBE_VENDOR_NAME_KEY),
+														(String) bobj.get(PROBE_PRODUCT_NAME_KEY),
+														(String) bobj.get(PROBE_TARGET_KEY),
+														(String) bobj.get(PROBE_UNIQUE_ID_KEY)
+														);
 				
 								result.add(probeInfo);
 							} catch (Exception e) {
@@ -391,24 +405,26 @@ public class PyOCD {
 						for (Object t : targets) {
 							try {
 								JSONObject tobj = (JSONObject) t;
-				
-								Target targetInfo = new Target();
-								targetInfo.fName = (String) tobj.get(TARGET_NAME_KEY);
-								targetInfo.fVendor = (String) tobj.get(TARGET_VENDOR_KEY);
-								targetInfo.fPartNumber = (String) tobj.get(TARGET_PART_NUMBER_KEY);
 								
+								String families[];
 								if (tobj.containsKey(TARGET_FAMILIES_KEY)) {
-									JSONArray families = (JSONArray)tobj.get(TARGET_FAMILIES_KEY);
+									JSONArray familiesJsonArray = (JSONArray)tobj.get(TARGET_FAMILIES_KEY);
 									ArrayList<String> familiesArrayList = new ArrayList<String>();
-									for (Object f : families) {
+									for (Object f : familiesJsonArray) {
 										familiesArrayList.add((String)f);
 									}
-									targetInfo.fFamilies = new String[families.size()];
-									familiesArrayList.toArray(targetInfo.fFamilies);
+									families = familiesArrayList.toArray(new String[familiesJsonArray.size()]);
 								}
 								else {
-									targetInfo.fFamilies = new String[] {};
+									families = new String[] {};
 								}
+								
+								Target targetInfo = new Target(
+														(String) tobj.get(TARGET_NAME_KEY),
+														(String) tobj.get(TARGET_VENDOR_KEY),
+														(String) tobj.get(TARGET_PART_NUMBER_KEY),
+														families
+														);
 				
 								result.add(targetInfo);
 							} catch (Exception e) {
