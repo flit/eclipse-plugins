@@ -1208,12 +1208,23 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	
 								fProbes = probes;
 								
-								// Figure out if the selected probe is connected.
+								// Figure out if the selected probe is connected. This also handles the case where
+								// no selected probe is stored in the launch config (fSelectedProbeId is empty).
 								int currentProbeIndex = indexForProbeId(fSelectedProbeId);
 								if (currentProbeIndex == -1) {
 									fProbeIdListHasUnavailableItem = true;
 									fProbeIdListUnavailableId = fSelectedProbeId;
-									itemList.add(String.format("[Unconnected probe] (%s)", fSelectedProbeId));
+									
+									// The message shown in the menu depends on whether the selected probe ID is
+									// empty (no selection) or not (valid selection but probe isn't available).
+									if (fSelectedProbeId.isEmpty()) {
+										itemList.add(Messages.getString("DebuggerTab.gdbServerSelectProbe"));
+									}
+									else {
+										itemList.add(String.format(
+												Messages.getString("DebuggerTab.gdbServerUnconnectedProbe"),
+												fSelectedProbeId));
+									}
 								}
 								else {
 									fProbeIdListHasUnavailableItem = false;
