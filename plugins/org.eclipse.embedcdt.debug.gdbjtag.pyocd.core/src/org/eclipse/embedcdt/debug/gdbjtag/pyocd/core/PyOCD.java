@@ -308,16 +308,16 @@ public class PyOCD {
 						JSONObject output = getData();
 						
 						if (!(checkOutput(output) && output.containsKey(BOARDS_KEY))) {
-							rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
-									IDsfStatusConstants.REQUEST_FAILED, "invalid output", null));
+							rm.setStatus(new Status(IStatus.ERROR, Activator.PLUGIN_ID,
+									Errors.ERROR_INVALID_JSON_FORMAT, "invalid output", null));
 							rm.done();
 							return;
 						}
 				
 						Object boardsObj = output.get(BOARDS_KEY);
 						if (!(boardsObj instanceof JSONArray)) {
-							rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
-									IDsfStatusConstants.REQUEST_FAILED, "invalid boards key type", null));
+							rm.setStatus(new Status(IStatus.ERROR, Activator.PLUGIN_ID,
+									Errors.ERROR_INVALID_JSON_FORMAT, "invalid boards key type", null));
 							rm.done();
 							return;
 						}
@@ -360,16 +360,16 @@ public class PyOCD {
 						JSONObject output = getData();
 						
 						if (!(checkOutput(output) && output.containsKey(TARGETS_KEY))) {
-							rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
-									IDsfStatusConstants.REQUEST_FAILED, "invalid output", null));
+							rm.setStatus(new Status(IStatus.ERROR, Activator.PLUGIN_ID,
+									Errors.ERROR_INVALID_JSON_FORMAT, "invalid output", null));
 							rm.done();
 							return;
 						}
 								
 						Object targetsObj = output.get(TARGETS_KEY);
 						if (!(targetsObj instanceof JSONArray)) {
-							rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
-									IDsfStatusConstants.REQUEST_FAILED, "invalid targets key type", null));
+							rm.setStatus(new Status(IStatus.ERROR, Activator.PLUGIN_ID,
+									Errors.ERROR_INVALID_JSON_FORMAT, "invalid targets key type", null));
 							rm.done();
 							return;
 						}
@@ -416,15 +416,14 @@ public class PyOCD {
 					if (Activator.getInstance().isDebugging()) {
 						System.out.printf("Parse exception: %s\n", e);
 					}
-					rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
-							IDsfStatusConstants.REQUEST_FAILED, "error parsing pyocd JSON output", e));
+					rm.setStatus(new Status(IStatus.ERROR, Activator.PLUGIN_ID,
+							Errors.ERROR_PARSING_OUTPUT, "error parsing pyocd JSON output", e));
 					rm.done();
 				} catch (CoreException e) {
 					if (Activator.getInstance().isDebugging()) {
 						System.out.printf("Core exception: %s\n", e);
 					}
-					rm.setStatus(new Status(IStatus.ERROR, PyOCD.class,
-							IDsfStatusConstants.REQUEST_FAILED, "error invoking pyocd", e));
+					rm.setStatus(e.getStatus());
 					rm.done();
 				}
 			}
