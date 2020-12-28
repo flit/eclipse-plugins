@@ -1204,7 +1204,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 									System.out.printf("probes = %s\n", probes);
 								}
 	
-								Collections.sort(probes, PyOCD.Probe.COMPARATOR);
+								Collections.sort(probes, PyOCD.Probe.DESCRIPTION_COMPARATOR);
 	
 								fProbes = probes;
 								
@@ -1220,16 +1220,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 								}
 	
 								for (PyOCD.Probe probe : probes) {
-									String desc = probe.fProductName;
-									if (!probe.fProductName.startsWith(probe.fVendorName)) {
-										desc = probe.fVendorName + " " + probe.fProductName;
-									}
-									if (probe.fName.equalsIgnoreCase("generic")) {
-										itemList.add(String.format("%s (%s)", desc, probe.fUniqueId));
-									}
-									else {
-										itemList.add(String.format("%s: %s (%s)", desc, probe.fName, probe.fUniqueId));
-									}
+									itemList.add(probe.getDescription());
 								}
 							}
 

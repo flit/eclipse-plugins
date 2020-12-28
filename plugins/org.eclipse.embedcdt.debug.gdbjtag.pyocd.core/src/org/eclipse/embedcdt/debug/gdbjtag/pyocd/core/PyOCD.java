@@ -105,8 +105,14 @@ public class PyOCD {
 		public final String fProductName;
 		public final String fTargetName;
 		public final String fUniqueId;
+		
+		//! The board name pyocd returns if the probe doesn't report that it is associated with a board.
+		public static final String GENERIC_BOARD_NAME = "generic";
+		
+		//! The board name pyocd returns if the probe reports a board ID but pyocd doesn't recognize it.
+		public static final String UNKNOWN_BOARD_NAME = "Unknown Board";
 
-		public static final Comparator COMPARATOR = new Comparator();
+		public static final Comparator DESCRIPTION_COMPARATOR = new Comparator();
 		
 		Probe(String board, String vendor, String product, String target, String uid) {
 			fBoardName = board;
@@ -115,19 +121,48 @@ public class PyOCD {
 			fTargetName = target;
 			fUniqueId = uid;
 		}
+		
+		/**
+		 * Return the combined vendor and product name.
+		 *
+		 * If the product name includes the vendor name as a prefix, as is the case with some probes,
+		 * then only the product name is returned so there is not a double vendor name.
+		 */
+		public String getName() {
+			if (fProductName.startsWith(fVendorName)) {
+				return fProductName;
+			}
+			else {
+				return fVendorName + " " + fProductName;
+			}
+		}
+		
+		/**
+		 * Return a description of the probe.
+		 */
+		public String getDescription() {
+			// PyOCD will set the board name to "generic" if the probe doesn't report that
+			// it is associated with a board.
+			if (fBoardName.equalsIgnoreCase(GENERIC_BOARD_NAME) || fBoardName.equalsIgnoreCase(UNKNOWN_BOARD_NAME)) {
+				return String.format("%s (%s)", getName(), fUniqueId);
+			}
+			else {
+				return String.format("%s: %s (%s)", getName(), fBoardName, fUniqueId);
+			}			
+		}
 
 		/**
-		 * Comparator to sort boards by name.
+		 * Comparator to sort boards by description.
 		 */
 		private static class Comparator implements java.util.Comparator<Probe> {
 			public int compare(Probe o1, Probe o2) {
-				return o1.fName.compareTo(o2.fName);
+				return o1.getDescription().compareTo(o2.getDescription());
 			}
 		}
 
 		@Override
 		public String toString() {
-			return String.format("<Probe: %s [%s] %s>", fName, fTargetName, fUniqueId);
+			return String.format("<Probe: %s [%s] %s>", getDescription(), fTargetName, fUniqueId);
 		}
 	}
 
