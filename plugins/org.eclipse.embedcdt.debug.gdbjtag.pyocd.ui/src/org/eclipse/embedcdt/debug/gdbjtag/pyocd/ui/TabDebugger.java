@@ -905,11 +905,14 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 		fGdbServerGdbPort.setEnabled(enabled);
 		fGdbServerTelnetPort.setEnabled(enabled);
+		fGdbServerProbeId.setEnabled(enabled);
 		fGdbServerBusSpeed.setEnabled(enabled);
 		fGdbServerOverrideTarget.setEnabled(enabled);
 		fGdbServerTargetName.setEnabled(enabled && fGdbServerOverrideTarget.getSelection());
 		fGdbServerHaltAtHardFault.setEnabled(enabled);
 		fGdbServerStepIntoInterrupts.setEnabled(enabled);
+		fGdbServerEnableSemihosting.setEnabled(enabled);
+		fGdbServerUseGdbSyscallsForSemihosting.setEnabled(enabled);
 		fGdbServerFlashMode.setEnabled(enabled);
 		fGdbServerFlashFastVerify.setEnabled(enabled);
 
