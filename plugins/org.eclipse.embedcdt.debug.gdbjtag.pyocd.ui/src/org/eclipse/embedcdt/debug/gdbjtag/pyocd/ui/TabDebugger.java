@@ -906,7 +906,9 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 	private void updateGdbServerActualPath() {
 
-		assert (fConfiguration != null);
+		if (fConfiguration == null) {
+			return;
+		}
 		String fullCommand = Configuration.getGdbServerCommand(fConfiguration, fGdbServerExecutable.getText());
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.updateActualpath() \"" + fullCommand + "\"");
@@ -920,7 +922,9 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 	private void updateGdbClientActualPath() {
 
-		assert (fConfiguration != null);
+		if (fConfiguration == null) {
+			return;
+		}
 		String fullCommand = Configuration.getGdbClientCommand(fConfiguration, fGdbClientExecutable.getText());
 		if (Activator.getInstance().isDebugging()) {
 			System.out.println("pyocd.TabDebugger.updateGdbClientActualPath() \"" + fullCommand + "\"");
@@ -1386,7 +1390,7 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 				// Probe ID
 				fSelectedProbeId = configuration.getAttribute(ConfigurationAttributes.GDB_SERVER_BOARD_ID,
 						DefaultPreferences.GDB_SERVER_BOARD_ID_DEFAULT);
-				selectActiveProbe();
+				// active probe will be selected after updateProbes() runs.
 
 				// Target override
 				fGdbServerOverrideTarget
@@ -1483,16 +1487,18 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 				fTargetPortNumber.setText(portString);
 			}
 
+			// Force thread update
+			{
+				boolean updateThreadsOnSuspend = configuration.getAttribute(
+						IGDBLaunchConfigurationConstants.ATTR_DEBUGGER_UPDATE_THREADLIST_ON_SUSPEND,
+						DefaultPreferences.UPDATE_THREAD_LIST_DEFAULT);
+				fUpdateThreadlistOnSuspend.setSelection(updateThreadsOnSuspend);
+			}
+			
 			doStartGdbServerChanged();
 			overrideTargetChanged();
 			updateProbes();
 			updateTargets();
-
-			// Force thread update
-			boolean updateThreadsOnSuspend = configuration.getAttribute(
-					IGDBLaunchConfigurationConstants.ATTR_DEBUGGER_UPDATE_THREADLIST_ON_SUSPEND,
-					DefaultPreferences.UPDATE_THREAD_LIST_DEFAULT);
-			fUpdateThreadlistOnSuspend.setSelection(updateThreadsOnSuspend);
 
 		} catch (CoreException e) {
 			Activator.log(e.getStatus());
@@ -1751,19 +1757,22 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			configuration.setAttribute(ConfigurationAttributes.GDB_SERVER_OVERRIDE_TARGET,
 					fGdbServerOverrideTarget.getSelection());
 
-			String targetPartNumber = fGdbServerTargetName.getText().trim();
-			String targetName = "";
-			if (!targetPartNumber.isEmpty()) {
-				Target target = fTargetsByPartNumber.get(targetPartNumber);
-				if (target != null) {
-					targetName = target.fName;
+			// Target type. Only save into the config if a valid targets list has been loaded.
+			if (fTargetsByPartNumber != null) {
+				String targetPartNumber = fGdbServerTargetName.getText().trim();
+				String targetName = "";
+				if (!targetPartNumber.isEmpty()) {
+					Target target = fTargetsByPartNumber.get(targetPartNumber);
+					if (target != null) {
+						targetName = target.fName;
+					}
+					else {
+						// If the user enters a target name that we can't find, just use as-is.
+						targetName = targetPartNumber;
+					}
 				}
-				else {
-					// If the user enters a target name that we can't find, just use as-is.
-					targetName = targetPartNumber;
-				}
+				configuration.setAttribute(ConfigurationAttributes.GDB_SERVER_TARGET_NAME, targetName);
 			}
-			configuration.setAttribute(ConfigurationAttributes.GDB_SERVER_TARGET_NAME, targetName);
 
 			// Misc options
 			configuration.setAttribute(ConfigurationAttributes.GDB_SERVER_HALT_AT_HARD_FAULT,
