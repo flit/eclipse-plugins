@@ -153,9 +153,13 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	 * pixels) between columns
 	 */
 	private static final int COLUMN_PAD = 30;
+	
+	private static final int MIN_PYOCD_MAJOR_VERSION = 0;
+	private static final int MIN_PYOCD_MINOR_VERSION = 14;
 
 	private static class Msgs {
 		public static final String INVALID_PYOCD_EXECUTABLE = "DebuggerTab.invalid_pyocd_executable";
+		public static final String OLD_PYOCD_EXECUTABLE = "DebuggerTab.old_pyocd_executable";
 		public static final String INVALID_GDBSERVER_PORT = "DebuggerTab.invalid_gdbserver_port";
 		public static final String INVALID_TELNET_PORT = "DebuggerTab.invalid_telnet_port";
 		public static final String INVALID_GDBCLIENT_EXECUTABLE = "DebuggerTab.invalid_gdbclient_executable";
@@ -941,6 +945,10 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	 *         (if it's in PATH)
 	 */
 	private String getPyOCDExecutablePath() {
+		// Clear errors first.
+		deregisterError(Msgs.INVALID_PYOCD_EXECUTABLE);
+		deregisterError(Msgs.OLD_PYOCD_EXECUTABLE);
+		
 		String path = Configuration.getGdbServerCommand(fConfiguration, fGdbServerExecutable.getText());
 		if (path.isEmpty()) {
 			return null;
@@ -952,33 +960,37 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 
 		// Validate path.
 
-		// First check using the most efficient means: see if the file
-		// exists. If it does, that's good enough.
+		// First check if the file is a directory.
 		File file = new File(path);
-		if (!file.exists()) {
-			// Support pyOCD being in PATH and specified sans path (issue#
-			// 102)
-			try {
-				Process process = Runtime.getRuntime().exec(path + " --version");
-				// If no exception, then it's an executable in PATH
-				try {
-					process.waitFor();
-				} catch (InterruptedException e) {
-					// No harm, no foul
-				}
-			} catch (IOException e) {
-				if (Activator.getInstance().isDebugging()) {
-					System.out.printf("pyOCD path is invalid\n");
-				}
-				return null;
-			}
-		} else if (file.isDirectory()) {
+		if (file.isDirectory()) {
 			// TODO: Use java.nio.Files when we move to Java 7 to also check
 			// that file is executable
 			if (Activator.getInstance().isDebugging()) {
 				System.out.printf("pyOCD path is invalid\n");
 			}
+			registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
 			return null;
+		}
+		else {
+			// Attempt to get the pyocd version, which also validates the path simultaneously.
+			// Support pyOCD being in PATH and specified sans path (issue#102)
+			PyOCD.Version version = PyOCD.getVersion(path);
+			
+			// If we get null back then the tool doesn't exist or can't be executed.
+			if (version == null) {
+				if (Activator.getInstance().isDebugging()) {
+					System.out.printf("pyOCD path is invalid\n");
+				}
+				registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
+				return null;
+			}
+			
+			// Make sure the version is acceptable.
+			if (!(version.fMajor >= MIN_PYOCD_MAJOR_VERSION
+					|| (version.fMajor == MIN_PYOCD_MAJOR_VERSION && version.fMinor >= MIN_PYOCD_MINOR_VERSION))) {
+				registerError(Msgs.OLD_PYOCD_EXECUTABLE);
+				return null;
+			}
 		}
 
 		return path;
@@ -1036,7 +1048,6 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	private void updateBoards() {
 		String path = getPyOCDExecutablePath();
 		if (path != null) {
-			deregisterError(Msgs.INVALID_PYOCD_EXECUTABLE);
 			List<PyOCD.Board> boards = PyOCD.getBoards(path);
 			if (boards == null) {
 				boards = new ArrayList<PyOCD.Board>();
@@ -1066,15 +1077,12 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			selectActiveBoard();
 		} else {
 			fGdbServerBoardId.setItems(new String[] {});
-			registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
 		}
 	}
 
 	private void updateTargets() {
 		String path = getPyOCDExecutablePath();
 		if (path != null) {
-			deregisterError(Msgs.INVALID_PYOCD_EXECUTABLE);
-
 			List<PyOCD.Target> targets = PyOCD.getTargets(path);
 			if (targets == null) {
 				targets = new ArrayList<PyOCD.Target>();
@@ -1104,7 +1112,6 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		} else {
 			// Clear combobox and show error
 			fGdbServerTargetName.setItems(new String[] {});
-			registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
 		}
 	}
 
@@ -1395,12 +1402,9 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 		boolean result = true;
 
 		if (fDoStartGdbServer != null && fDoStartGdbServer.getSelection()) {
-			String path = getPyOCDExecutablePath();
-			if (path == null) {
-				registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
-			}
-			else {
-				deregisterError(Msgs.INVALID_PYOCD_EXECUTABLE);
+			// Quick check if the field is filled in. getPyOCDExecutablePath() will handle showing an error.
+			if (fGdbServerExecutable != null && fGdbServerExecutable.getText().trim().isEmpty()) {
+				result = false;
 			}
 
 			if (fGdbServerGdbPort != null && fGdbServerGdbPort.getText().trim().isEmpty()) {
