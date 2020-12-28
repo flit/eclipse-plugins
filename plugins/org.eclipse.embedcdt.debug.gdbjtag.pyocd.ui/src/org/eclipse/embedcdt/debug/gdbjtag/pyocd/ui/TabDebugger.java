@@ -160,8 +160,8 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 	 */
 	private static final int COLUMN_PAD = 30;
 	
-	private static final int MIN_PYOCD_MAJOR_VERSION = 0;
-	private static final int MIN_PYOCD_MINOR_VERSION = 14;
+//	private static final int MIN_PYOCD_MAJOR_VERSION = 0;
+//	private static final int MIN_PYOCD_MINOR_VERSION = 14;
 
 	private static class Msgs {
 		public static final String INVALID_PYOCD_EXECUTABLE = "DebuggerTab.invalid_pyocd_executable";
@@ -995,27 +995,34 @@ public class TabDebugger extends AbstractLaunchConfigurationTab {
 			registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
 			return null;
 		}
-		else {
-			// Attempt to get the pyocd version, which also validates the path simultaneously.
-			// Support pyOCD being in PATH and specified sans path (issue#102)
-			PyOCD.Version version = PyOCD.getInstance().getVersion(path);
-			
-			// If we get null back then the tool doesn't exist or can't be executed.
-			if (version == null) {
-				if (Activator.getInstance().isDebugging()) {
-					System.out.printf("pyOCD path is invalid\n");
-				}
-				registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
-				return null;
-			}
-			
-			// Make sure the version is acceptable.
-			if (!(version.fMajor >= MIN_PYOCD_MAJOR_VERSION
-					|| (version.fMajor == MIN_PYOCD_MAJOR_VERSION && version.fMinor >= MIN_PYOCD_MINOR_VERSION))) {
-				registerError(Msgs.OLD_PYOCD_EXECUTABLE);
-				return null;
-			}
-		}
+//		else {
+//			if (Activator.getInstance().isDebugging()) {
+//				System.out.printf("start getting pyOCD version\n");
+//			}
+//			// Attempt to get the pyocd version, which also validates the path simultaneously.
+//			// Support pyOCD being in PATH and specified sans path (issue#102)
+//			PyOCD.Version version = PyOCD.getInstance().getVersion(path);
+//
+//			if (Activator.getInstance().isDebugging()) {
+//				System.out.printf("end getting pyOCD version\n");
+//			}
+//
+//			// If we get null back then the tool doesn't exist or can't be executed.
+//			if (version == null) {
+//				if (Activator.getInstance().isDebugging()) {
+//					System.out.printf("pyOCD path is invalid\n");
+//				}
+//				registerError(Msgs.INVALID_PYOCD_EXECUTABLE);
+//				return null;
+//			}
+//			
+//			// Make sure the version is acceptable.
+//			if (!(version.fMajor >= MIN_PYOCD_MAJOR_VERSION
+//					|| (version.fMajor == MIN_PYOCD_MAJOR_VERSION && version.fMinor >= MIN_PYOCD_MINOR_VERSION))) {
+//				registerError(Msgs.OLD_PYOCD_EXECUTABLE);
+//				return null;
+//			}
+//		}
 
 		return path;
 	}
