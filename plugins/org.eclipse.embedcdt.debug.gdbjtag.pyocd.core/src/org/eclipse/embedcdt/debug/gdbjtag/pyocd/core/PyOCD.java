@@ -306,6 +306,24 @@ public class PyOCD {
 	}
 
 	/**
+	 * pyOCD configuration option.
+	 *
+	 */
+	public static class Option {
+		public final String fName;
+		public final Object fDefault;
+		public final String fTypes[];
+		public final String fDescription;
+		
+		Option(String name, Object defaultValue, String types[], String desc) {
+			fName = name;
+			fDefault = defaultValue;
+			fTypes = types;
+			fDescription = desc;
+		}
+	}
+	
+	/**
 	 * pyOCD version number.
 	 * @since 3.0
 	 *
